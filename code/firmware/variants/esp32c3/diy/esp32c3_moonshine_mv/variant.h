@@ -23,9 +23,17 @@
 #define GPS_POWER_TOGGLE 1
 #define PIN_GPS_EN 12
 
-#define HAS_GPS 0
-#undef GPS_RX_PIN
-#undef GPS_TX_PIN
+#undef  BATTERY_PIN
+#define BATTERY_PIN            2
+#define ADC_CHANNEL            ADC1_GPIO1_CHANNEL
+
+#undef  ADC_MULTIPLIER
+#define ADC_MULTIPLIER         2.0f
+
+#define HAS_NEOPIXEL 1
+#define NEOPIXEL_DATA 13
+#define NEOPIXEL_COUNT 1 // How many neopixels are connected
+#define NEOPIXEL_TYPE (NEO_GRB + NEO_KHZ800)
 
 #define RA_01SC_P
 
