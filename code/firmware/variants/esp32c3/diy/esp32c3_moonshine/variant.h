@@ -13,11 +13,20 @@
 #undef GPS_RX_PIN
 #undef GPS_TX_PIN
 
+#define E220_400M30S
+//#define E220_400M33S
 
-#undef TX_GAIN_LORA
-#undef SX126X_MAX_POWER
-#define TX_GAIN_LORA 7
+#ifdef E220_400M30S
+#define SETTING_MAX_POWER 30
+#define TX_GAIN_LORA 8
 #define SX126X_MAX_POWER 22
+#endif
+
+#ifdef E220_400M33S
+#define SETTING_MAX_POWER 33
+#define TX_GAIN_LORA 25
+#define SX126X_MAX_POWER 8
+#endif
 
 #define USE_LLCC68
 #define LORA_SCK 10
