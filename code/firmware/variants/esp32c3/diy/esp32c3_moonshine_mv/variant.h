@@ -30,10 +30,10 @@
 #undef  ADC_MULTIPLIER
 #define ADC_MULTIPLIER         2.0f
 
-#define HAS_NEOPIXEL 1
-#define NEOPIXEL_DATA 13
-#define NEOPIXEL_COUNT 1 // How many neopixels are connected
-#define NEOPIXEL_TYPE (NEO_GRB + NEO_KHZ800)
+// #define HAS_NEOPIXEL 1
+// #define NEOPIXEL_DATA 13
+// #define NEOPIXEL_COUNT 1 // How many neopixels are connected
+// #define NEOPIXEL_TYPE (NEO_GRB + NEO_KHZ800)
 
 #define RA_01SC_P
 
