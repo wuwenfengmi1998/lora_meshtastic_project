@@ -5,10 +5,20 @@
 // https://resource.heltec.cn/download/HT-DEV-ESP/HT-DEV-ESP_V3_Sch.pdf
 
 
-#define LED_POWER 12    // LED
+#define LED_POWER 13    // LED
 #define LED_STATE_ON 1 // State when LED is lit
 
-#define HAS_SCREEN 0
+
+#define HAS_SCREEN 1
+#define USE_SSD1306
+
+#define HAS_I2C 1
+#define WIRE_INTERFACES_COUNT (1)
+#define I2C_SDA 0
+#define I2C_SCL 1
+
+
+
 #define HAS_GPS 0
 #undef GPS_RX_PIN
 #undef GPS_TX_PIN
@@ -22,6 +32,9 @@
 #endif
 
 #define USE_LLCC68
+#define USE_SX1262
+#define USE_SX1268
+
 #define LORA_SCK 10
 #define LORA_MISO 6
 #define LORA_MOSI 7
@@ -37,3 +50,5 @@
 #define SX126X_RESET LORA_RESET
 #define SX126X_DIO2_AS_RF_SWITCH
 #define SX126X_DIO3_TCXO_VOLTAGE 1.8
+
+#define TCXO_OPTIONAL

@@ -29,6 +29,9 @@
 #endif
 
 #define USE_LLCC68
+#define USE_SX1262
+#define USE_SX1268
+
 #define LORA_SCK 10
 #define LORA_MISO 6
 #define LORA_MOSI 7
@@ -44,3 +47,5 @@
 #define SX126X_RESET LORA_RESET
 #define SX126X_DIO2_AS_RF_SWITCH
 #define SX126X_DIO3_TCXO_VOLTAGE 1.8
+
+#define TCXO_OPTIONAL
