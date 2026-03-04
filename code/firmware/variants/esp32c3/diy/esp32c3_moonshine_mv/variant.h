@@ -17,7 +17,11 @@
 #define I2C_SDA 0
 #define I2C_SCL 1
 
-
+#define HAS_GPS 1
+#define GPS_RX_PIN 21
+#define GPS_TX_PIN 20
+#define GPS_POWER_TOGGLE 1
+#define PIN_GPS_EN 12
 
 #define HAS_GPS 0
 #undef GPS_RX_PIN
