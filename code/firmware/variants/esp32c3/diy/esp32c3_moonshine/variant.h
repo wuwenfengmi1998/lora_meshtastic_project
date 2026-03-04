@@ -13,7 +13,10 @@
 #undef GPS_RX_PIN
 #undef GPS_TX_PIN
 
-#define TX_GAIN_LORA 8
+
+#undef TX_GAIN_LORA
+#undef SX126X_MAX_POWER
+#define TX_GAIN_LORA 7
 #define SX126X_MAX_POWER 22
 
 #define USE_LLCC68
