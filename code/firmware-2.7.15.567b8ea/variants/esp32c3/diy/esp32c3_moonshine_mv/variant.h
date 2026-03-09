@@ -23,6 +23,21 @@
 #define GPS_POWER_TOGGLE 1
 #define PIN_GPS_EN 12
 
+#define HAS_PCF8574_BUTTON
+#define PCF8574_ADDR 0x27
+#define PCF8574_INT_PIN 9
+
+#define PCF8574_BUTTON_MAP { \
+    INPUT_BROKER_SELECT,      /* P0: 确定 */ \
+    INPUT_BROKER_DOWN,        /* P1: 下 */ \
+    INPUT_BROKER_UP,          /* P2: 上 */ \
+    INPUT_BROKER_LEFT,        /* P3: 左 */ \
+    INPUT_BROKER_RIGHT,       /* P4: 右 */ \
+    INPUT_BROKER_SELECT,      /* P5: 确定 */ \
+    INPUT_BROKER_CANCEL,      /* P6: 取消 */ \
+    INPUT_BROKER_NONE,        /* P7: 未使用 */ \
+}
+
 
 #define BATTERY_PIN            2
 #define ADC_CHANNEL            ADC1_GPIO2_CHANNEL

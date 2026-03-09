@@ -4,17 +4,30 @@
 // https://resource.heltec.cn/download/HT-CT62/HT-CT62_Reference_Design.pdf
 // https://resource.heltec.cn/download/HT-DEV-ESP/HT-DEV-ESP_V3_Sch.pdf
 
+#define HAS_SCREEN 0
 
-#define LED_POWER 12    // LED
+#define HAS_I2C 0
+#define WIRE_INTERFACES_COUNT (0)
+#define I2C_SDA 12
+#define I2C_SCL 13
+
+
+
+#define BATTERY_PIN            1
+#define ADC_CHANNEL            ADC1_GPIO1_CHANNEL
+#define ADC_MULTIPLIER         2.0f
+
+#define LED_POWER 0    // LED
 #define LED_STATE_ON 1 // State when LED is lit
 
-#define HAS_SCREEN 0
+
 #define HAS_GPS 0
 #undef GPS_RX_PIN
 #undef GPS_TX_PIN
 
-#define E220_400M30S
+//#define E220_400M30S
 //#define E220_400M33S
+#define E22_400M33S
 
 #ifdef E220_400M30S
 #define SETTING_MAX_POWER 30
@@ -22,10 +35,10 @@
 #define SX126X_MAX_POWER 22
 #endif
 
-#ifdef E220_400M33S
+#ifdef E22_400M33S
 #define SETTING_MAX_POWER 33
-#define TX_GAIN_LORA 25
-#define SX126X_MAX_POWER 8
+#define TX_GAIN_LORA 12
+#define SX126X_MAX_POWER 21
 #endif
 
 #define USE_LLCC68
