@@ -37,12 +37,12 @@
 
 #ifdef E22_400M33S
 #define SETTING_MAX_POWER 33
-#define TX_GAIN_LORA 12
-#define SX126X_MAX_POWER 21
+#define TX_GAIN_LORA 11
+#define SX126X_MAX_POWER 22
 #endif
 
-#define USE_LLCC68
-#define USE_SX1262
+//#define USE_LLCC68
+//#define USE_SX1262
 #define USE_SX1268
 
 #define LORA_SCK 10
