@@ -1,9 +1,5 @@
 #define BUTTON_PIN 9
 
-// LED pin on HT-DEV-ESP_V2 and HT-DEV-ESP_V3
-// https://resource.heltec.cn/download/HT-CT62/HT-CT62_Reference_Design.pdf
-// https://resource.heltec.cn/download/HT-DEV-ESP/HT-DEV-ESP_V3_Sch.pdf
-
 #define HAS_SCREEN 0
 
 #define HAS_I2C 0
@@ -12,12 +8,11 @@
 #define I2C_SCL 13
 
 
-
 #define BATTERY_PIN            1
 #define ADC_CHANNEL            ADC1_GPIO1_CHANNEL
 #define ADC_MULTIPLIER         2.0f
 
-#define LED_POWER 0    // LED
+#define LED_PIN 0    // LED
 #define LED_STATE_ON 1 // State when LED is lit
 
 
@@ -36,13 +31,15 @@
 #endif
 
 #ifdef E22_400M33S
-#define SETTING_MAX_POWER 33
-#define TX_GAIN_LORA 11
+#define SETTING_MAX_POWER 22
+#define NUM_PA_POINTS 1
+#define TX_GAIN_LORA 0
 #define SX126X_MAX_POWER 22
+//#define HAS_LORA_FEM 1
 #endif
 
-//#define USE_LLCC68
-//#define USE_SX1262
+#define USE_LLCC68
+#define USE_SX1262
 #define USE_SX1268
 
 #define LORA_SCK 10
@@ -54,6 +51,8 @@
 #define LORA_DIO1 3
 #define LORA_DIO2 RADIOLIB_NC
 #define LORA_BUSY 4
+
+#define SX126X_RXEN 2
 #define SX126X_CS LORA_CS
 #define SX126X_DIO1 LORA_DIO1
 #define SX126X_BUSY LORA_BUSY
