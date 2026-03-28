@@ -141,6 +141,43 @@ AudioThread *audioThread = nullptr;
 ExtensionIOXL9555 io;
 #endif
 
+#ifdef HAS_TCA9535_BUTTON
+#include "input/TCA9535ButtonThread.h"
+TCA9535ButtonThread *tca9535ButtonThread = nullptr;
+#endif
+
+// ---------------------------------------------------------------------------
+// 自定义 HAL：拦截 TCA9535 虚拟引脚的 GPIO 操作，转发到 I²C
+// 用于 LoRa RST 通过 TCA9535 P1.4 控制
+// ---------------------------------------------------------------------------
+#ifdef TCA9535_LORA_RST_VIRTUAL_PIN
+#include <RadioLib.h>
+
+class TCA9535GpioHal : public LockingArduinoHal
+{
+  public:
+    TCA9535GpioHal(SPIClass &spi, SPISettings spiSettings) : LockingArduinoHal(spi, spiSettings) {}
+
+    void pinMode(uint32_t pin, uint32_t mode) override
+    {
+        if (pin == TCA9535_LORA_RST_VIRTUAL_PIN) {
+            // P1.4 已由 TCA9535 驱动配置为输出，无需重复操作
+            return;
+        }
+        LockingArduinoHal::pinMode(pin, mode);
+    }
+
+    void digitalWrite(uint32_t pin, uint32_t value) override
+    {
+        if (pin == TCA9535_LORA_RST_VIRTUAL_PIN) {
+            tca9535LoraReset(value == GpioLevelHigh);
+            return;
+        }
+        LockingArduinoHal::digitalWrite(pin, value);
+    }
+};
+#endif
+
 #if HAS_TFT
 extern void tftSetup(void);
 #endif
@@ -953,6 +990,19 @@ void setup()
     // Now that the mesh service is created, create any modules
     setupModules();
 
+#ifdef HAS_TCA9535_BUTTON
+    // TCA9535PWR I²C IO 扩展器按键驱动
+    // Wire 已在 I2C 初始化段完成 begin()，inputBroker 已在 setupModules() 中创建
+    tca9535ButtonThread = new TCA9535ButtonThread("TCA9535Btn");
+    if (!tca9535ButtonThread->init()) {
+        LOG_WARN("TCA9535 init failed, disabling button thread");
+        delete tca9535ButtonThread;
+        tca9535ButtonThread = nullptr;
+    } else {
+        LOG_INFO("TCA9535 button thread started");
+    }
+#endif
+
 #if !MESHTASTIC_EXCLUDE_I2C
     // Inform modules about I2C devices
     ScanI2CCompleted(i2cScanner.get());
@@ -1219,6 +1269,8 @@ void setup()
 
 #elif defined(HW_SPI1_DEVICE)
     LockingArduinoHal *RadioLibHAL = new LockingArduinoHal(SPI1, spiSettings);
+#elif defined(TCA9535_LORA_RST_VIRTUAL_PIN)
+    TCA9535GpioHal *RadioLibHAL = new TCA9535GpioHal(SPI, spiSettings);
 #else // HW_SPI1_DEVICE
     LockingArduinoHal *RadioLibHAL = new LockingArduinoHal(SPI, spiSettings);
 #endif
