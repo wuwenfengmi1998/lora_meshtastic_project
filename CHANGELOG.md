@@ -55,10 +55,20 @@
 
 ### Changed
 
-- 无
+#### 按键映射更新（key3/key7/key11/key15 = 方向键）
+- 矩阵按键映射从 `key1=UP, key2=DOWN, key3=LEFT, key4=RIGHT` 改为 `key3=UP, key7=DOWN, key11=LEFT, key15=RIGHT`
+- 方向键全部位于 COL3 列（key3=ROW0·COL3, key7=ROW1·COL3, key11=ROW2·COL3, key15=ROW3·COL3）
+- SELECT 由 GPIO9 短按处理，CANCEL 由 POWER_BOOT(P1.3) 短按处理
+
+#### P1.5 状态灯改为独立 1 秒闪烁
+- P1.5 状态灯从 `GpioSplitter` + `LED_PIN` 同步驱动改为独立驱动
+- 在 `TCA9535ButtonThread::runOnce()` 中每 500ms 翻转（亮 500ms + 灭 500ms = 1 秒周期）
+- 移除 `Led.cpp` 中的 `GpioTca9535LedPin` 类及相关 `#ifdef TCA9535_LORA_RST_VIRTUAL_PIN` 代码
 
 ### Fixed
 
+- **矩阵扫描 cols 整数提升 bug**：`~` 运算符对 `uint8_t` 提升为 `int`，导致 `cols` 高 4 位被污染，key4~key15 永远无法触发
+  - 修复：`((~(p0In & 0xF0)) >> 4) & 0x0F` — 显式截断到 4 bit
 - **LTO 链接错误**：编译时 `-flto` 导致 `undefined reference to TCA9535ButtonThread::*`
   - 原因：.h/.cpp 中的 `#if defined(HAS_TCA9535_BUTTON)` 守卫导致部分编译单元中符号被丢弃
   - 修复：去掉 .h/.cpp 中的条件守卫，类定义和实现始终编译；main.cpp 中的实例化仍由 `#ifdef` 控制

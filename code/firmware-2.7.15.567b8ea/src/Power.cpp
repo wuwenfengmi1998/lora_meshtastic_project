@@ -20,6 +20,10 @@
 #include "meshUtils.h"
 #include "sleep.h"
 
+#ifdef TCA9535_LORA_RST_VIRTUAL_PIN
+#include "input/TCA9535ButtonThread.h"
+#endif
+
 #if defined(ARCH_PORTDUINO)
 #include "api/WiFiServerAPI.h"
 #include "input/LinuxInputImpl.h"
@@ -779,6 +783,14 @@ void Power::shutdown()
 #ifdef PIN_LED3
     ledOff(PIN_LED3);
 #endif
+
+#ifdef TCA9535_LORA_RST_VIRTUAL_PIN
+    // TCA9535 电源管理板卡：拉低 POWER_EN 切断硬件供电
+    // 按键仍按着时 MOS 还导通，屏幕 "Shutting Down..." 已显示完毕
+    tca9535PowerEn(false);
+    delay(500); // 等待 I²C 写入完成和屏幕显示稳定
+#endif
+
     doDeepSleep(DELAY_FOREVER, true, true);
 #elif defined(ARCH_PORTDUINO)
     exit(EXIT_SUCCESS);

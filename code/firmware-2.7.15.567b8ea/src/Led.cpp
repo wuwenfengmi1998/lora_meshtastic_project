@@ -41,6 +41,8 @@ static GpioSplitter ledFinalPin(&ledHwPin, &ledPmuHwPin);
 static GpioPin &ledFinalPin = ledHwPin;
 #endif
 
+// P1.5 状态灯由 TCA9535ButtonThread 独立驱动 1 秒闪烁，不再跟随 LED_PIN
+
 #ifdef USE_POWERMON
 /**
  * We monitor changes to the LED drive output because we use that as a sanity test in our power monitor stuff.

@@ -1,5 +1,12 @@
 #define BUTTON_PIN 9
 
+// GPIO9 短按直接触发 SELECT（而非默认的 USER_PRESS 切换）
+// 长按无功能（关机由 POWER_BOOT 长按处理）
+#ifndef BUTTON_SINGLE_PRESS_EVENT
+#define BUTTON_SINGLE_PRESS_EVENT INPUT_BROKER_SELECT
+#endif
+#define BUTTON_DISABLE_LONG_PRESS 1
+
 
 #define HAS_SCREEN 1
 #define USE_SH1106
@@ -36,25 +43,27 @@
 
 // 按键映射：4×4 矩阵，行优先排列
 //   KEY[0]=ROW0·COL0, KEY[1]=ROW0·COL1, ..., KEY[15]=ROW3·COL3
-// 低电平有效（按下接地，列读取到低电平=按下）
+//   低电平有效（按下接地，列读取到低电平=按下）
+//   SELECT 由 GPIO9 短按触发，CANCEL 由 POWER_BOOT(P1.3) 短按触发
+//   矩阵仅保留方向键
 #define TCA9535_KEY_MAP                                                                                                        \
     {                                                                                                                          \
-        INPUT_BROKER_SELECT, /* ROW0·COL0 */                                                                                 \
-        INPUT_BROKER_UP,     /* ROW0·COL1 */                                                                                 \
-        INPUT_BROKER_DOWN,   /* ROW0·COL2 */                                                                                 \
-        INPUT_BROKER_LEFT,   /* ROW0·COL3 */                                                                                 \
-        INPUT_BROKER_RIGHT,  /* ROW1·COL0 */                                                                                 \
-        INPUT_BROKER_CANCEL, /* ROW1·COL1 */                                                                                 \
-        INPUT_BROKER_NONE,   /* ROW1·COL2 */                                                                                 \
-        INPUT_BROKER_NONE,   /* ROW1·COL3 */                                                                                 \
-        INPUT_BROKER_NONE,   /* ROW2·COL0 */                                                                                 \
-        INPUT_BROKER_NONE,   /* ROW2·COL1 */                                                                                 \
-        INPUT_BROKER_NONE,   /* ROW2·COL2 */                                                                                 \
-        INPUT_BROKER_NONE,   /* ROW2·COL3 */                                                                                 \
-        INPUT_BROKER_NONE,   /* ROW3·COL0 */                                                                                 \
-        INPUT_BROKER_NONE,   /* ROW3·COL1 */                                                                                 \
-        INPUT_BROKER_NONE,   /* ROW3·COL2 */                                                                                 \
-        INPUT_BROKER_NONE,   /* ROW3·COL3 */                                                                                 \
+        INPUT_BROKER_NONE,   /* key0  = ROW0·COL0 */                                                                          \
+        INPUT_BROKER_NONE,   /* key1  = ROW0·COL1 */                                                                          \
+        INPUT_BROKER_NONE,   /* key2  = ROW0·COL2 */                                                                          \
+        INPUT_BROKER_UP,     /* key3  = ROW0·COL3 */                                                                          \
+        INPUT_BROKER_NONE,   /* key4  = ROW1·COL0 */                                                                          \
+        INPUT_BROKER_NONE,   /* key5  = ROW1·COL1 */                                                                          \
+        INPUT_BROKER_NONE,   /* key6  = ROW1·COL2 */                                                                          \
+        INPUT_BROKER_DOWN,   /* key7  = ROW1·COL3 */                                                                          \
+        INPUT_BROKER_NONE,   /* key8  = ROW2·COL0 */                                                                          \
+        INPUT_BROKER_NONE,   /* key9  = ROW2·COL1 */                                                                          \
+        INPUT_BROKER_NONE,   /* key10 = ROW2·COL2 */                                                                          \
+        INPUT_BROKER_LEFT,   /* key11 = ROW2·COL3 */                                                                          \
+        INPUT_BROKER_NONE,   /* key12 = ROW3·COL0 */                                                                          \
+        INPUT_BROKER_NONE,   /* key13 = ROW3·COL1 */                                                                          \
+        INPUT_BROKER_NONE,   /* key14 = ROW3·COL2 */                                                                          \
+        INPUT_BROKER_RIGHT,  /* key15 = ROW3·COL3 */                                                                          \
     }
 
 

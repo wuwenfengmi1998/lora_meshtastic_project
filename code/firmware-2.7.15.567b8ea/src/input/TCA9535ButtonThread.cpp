@@ -4,29 +4,29 @@
 
 using namespace concurrency;
 
-// -----------------------------------------------------------------------
 // 默认按键映射（4×4 矩阵，行优先：KEY[0]=ROW0·COL0 ... KEY[15]=ROW3·COL3）
+// 仅保留方向键，SELECT/CANCEL 由其他按键处理
 // variant.h 中可用 #define TCA9535_KEY_MAP { ... } 覆盖
 // -----------------------------------------------------------------------
 #ifndef TCA9535_KEY_MAP
 #define TCA9535_KEY_MAP                                                                                                         \
     {                                                                                                                           \
-        INPUT_BROKER_SELECT, /* ROW0·COL0 */                                                                                   \
-        INPUT_BROKER_UP,     /* ROW0·COL1 */                                                                                   \
-        INPUT_BROKER_DOWN,   /* ROW0·COL2 */                                                                                   \
-        INPUT_BROKER_LEFT,   /* ROW0·COL3 */                                                                                   \
-        INPUT_BROKER_RIGHT,  /* ROW1·COL0 */                                                                                   \
-        INPUT_BROKER_CANCEL, /* ROW1·COL1 */                                                                                   \
-        INPUT_BROKER_NONE,   /* ROW1·COL2 */                                                                                   \
-        INPUT_BROKER_NONE,   /* ROW1·COL3 */                                                                                   \
-        INPUT_BROKER_NONE,   /* ROW2·COL0 */                                                                                   \
-        INPUT_BROKER_NONE,   /* ROW2·COL1 */                                                                                   \
-        INPUT_BROKER_NONE,   /* ROW2·COL2 */                                                                                   \
-        INPUT_BROKER_NONE,   /* ROW2·COL3 */                                                                                   \
-        INPUT_BROKER_NONE,   /* ROW3·COL0 */                                                                                   \
-        INPUT_BROKER_NONE,   /* ROW3·COL1 */                                                                                   \
-        INPUT_BROKER_NONE,   /* ROW3·COL2 */                                                                                   \
-        INPUT_BROKER_NONE,   /* ROW3·COL3 */                                                                                   \
+        INPUT_BROKER_NONE,   /* key0  = ROW0·COL0 */                                                                           \
+        INPUT_BROKER_NONE,   /* key1  = ROW0·COL1 */                                                                           \
+        INPUT_BROKER_NONE,   /* key2  = ROW0·COL2 */                                                                           \
+        INPUT_BROKER_UP,     /* key3  = ROW0·COL3 */                                                                           \
+        INPUT_BROKER_NONE,   /* key4  = ROW1·COL0 */                                                                           \
+        INPUT_BROKER_NONE,   /* key5  = ROW1·COL1 */                                                                           \
+        INPUT_BROKER_NONE,   /* key6  = ROW1·COL2 */                                                                           \
+        INPUT_BROKER_DOWN,   /* key7  = ROW1·COL3 */                                                                           \
+        INPUT_BROKER_NONE,   /* key8  = ROW2·COL0 */                                                                           \
+        INPUT_BROKER_NONE,   /* key9  = ROW2·COL1 */                                                                           \
+        INPUT_BROKER_NONE,   /* key10 = ROW2·COL2 */                                                                           \
+        INPUT_BROKER_LEFT,   /* key11 = ROW2·COL3 */                                                                           \
+        INPUT_BROKER_NONE,   /* key12 = ROW3·COL0 */                                                                           \
+        INPUT_BROKER_NONE,   /* key13 = ROW3·COL1 */                                                                           \
+        INPUT_BROKER_NONE,   /* key14 = ROW3·COL2 */                                                                           \
+        INPUT_BROKER_RIGHT,  /* key15 = ROW3·COL3 */                                                                           \
     }
 #endif
 
@@ -58,11 +58,11 @@ bool TCA9535ButtonThread::init()
 {
     // ===================================================================
     // 第一步：配置 P1 口方向
-    // P1.2 = 输出（POWER_EN），P1.3 = 输入（POWER_BOOT），P1.4 = 输出（LoRa RST）
+    // P1.2 = 输出（POWER_EN），P1.3 = 输入（POWER_BOOT），P1.4 = 输出（LoRa RST），P1.5 = 输出（状态灯）
     // Configuration 寄存器：1=input, 0=output
-    // P1.2=bit2=0, P1.3=bit3=1, P1.4=bit4=0 → 0xEB (1110 1011)
+    // P1.2=bit2=0, P1.3=bit3=1, P1.4=bit4=0, P1.5=bit5=0 → 0xCB (1100 1011)
     // ===================================================================
-    if (!writeReg(TCA9535_REG_CONFIG_P1, 0xEB)) {
+    if (!writeReg(TCA9535_REG_CONFIG_P1, 0xCB)) {
         LOG_WARN("TCA9535: P1 config write failed");
         return false;
     }
@@ -70,6 +70,9 @@ bool TCA9535ButtonThread::init()
     // 确保 P1.4 输出高电平（LoRa RST 高 = 正常工作）
     // 注意：此时不拉高 POWER_EN，等开机确认后再拉高
     tca9535LoraReset(true);
+
+    // P1.5 状态灯默认熄灭（高电平）
+    tca9535StatusLed(false);
 
     // ===================================================================
     // 第二步：开机检测 — 等待用户持续按住 P1.3 达 2 秒
@@ -174,24 +177,26 @@ int32_t TCA9535ButtonThread::runOnce()
             // 持续按住中
             uint32_t held = millis() - _powerBtnPressStart;
             if (held >= TCA9535_POWER_BOOT_HOLD_MS) {
-                LOG_WARN("TCA9535: Shutdown button held %lu ms -> POWERING OFF", held);
-                _powerState = TCA9535PowerState::SHUTDOWN_PENDING;
-
-                // 清空屏幕，给用户"即将关机"的视觉反馈
-                // 按键仍在按着所以 MOS 还导通，系统不会立刻断电
-                if (screen)
-                    screen->setOn(false);
-
-                tca9535PowerEn(false);
-                // 用户松手后 MOS 断开，系统断电
-                return INT32_MAX; // 不再调度
+                LOG_WARN("TCA9535: Power button held %lu ms -> SHUTDOWN", held);
+                _powerBtnPressStart = 0;
+                dispatchEvent(INPUT_BROKER_SHUTDOWN);
             }
         } else if (!pressed && _powerBtnPressStart != 0) {
-            // 按键松开，未达关机时间
+            // 按键松开，未达关机时间 → 短按 = CANCEL 事件
             uint32_t held = millis() - _powerBtnPressStart;
-            LOG_DEBUG("TCA9535: Shutdown button released after %lu ms (no action)", held);
+            LOG_DEBUG("TCA9535: Power button short press (%lu ms) -> CANCEL", held);
             _powerBtnPressStart = 0;
+            dispatchEvent(INPUT_BROKER_CANCEL);
         }
+    }
+
+    // ===================================================================
+    // P1.5 状态灯闪烁：500ms 亮 + 500ms 灭 = 1 秒周期
+    // ===================================================================
+    if (millis() - _statusLedToggleMs >= 500) {
+        _statusLedToggleMs = millis();
+        _statusLedOn = !_statusLedOn;
+        tca9535StatusLed(_statusLedOn);
     }
 
     // ===================================================================
@@ -221,8 +226,6 @@ int32_t TCA9535ButtonThread::runOnce()
         if (pressed & (1u << i)) {
             input_broker_event evt = tca9535KeyMap[i];
             if (evt != INPUT_BROKER_NONE) {
-                LOG_DEBUG("TCA9535: key[%u] (R%uC%u) pressed -> event %d", i, i / TCA9535_COLS, i % TCA9535_COLS,
-                          (int)evt);
                 dispatchEvent(evt);
             }
         }
@@ -262,7 +265,8 @@ bool TCA9535ButtonThread::scanMatrix(uint16_t &keys)
 
         // 提取列位（P0.4~P0.7），低电平=按下
         // 将列状态从高4位移到低位，便于索引
-        uint8_t cols = (~(p0In & TCA9535_COL_MASK)) >> 4; // bit0=COL0, bit3=COL3
+        // 注意：~ 运算会将 uint8_t 提升为 int，必须 & 0x0F 截断到 4 bit
+        uint8_t cols = ((~(p0In & TCA9535_COL_MASK)) >> 4) & 0x0F; // bit0=COL0, bit3=COL3
 
         // 组装到 keys（每行 4 列）
         keys |= ((uint16_t)cols << (row * TCA9535_COLS));

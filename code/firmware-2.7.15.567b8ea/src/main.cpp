@@ -1151,6 +1151,13 @@ void setup()
         userConfig.longPress = INPUT_BROKER_SELECT;
         userConfig.longPressTime = 500;
         userConfig.longLongPress = INPUT_BROKER_SHUTDOWN;
+#ifdef BUTTON_SINGLE_PRESS_EVENT
+        userConfig.singlePress = BUTTON_SINGLE_PRESS_EVENT;
+#endif
+#ifdef BUTTON_DISABLE_LONG_PRESS
+        userConfig.longPress = INPUT_BROKER_NONE;
+        userConfig.longLongPress = INPUT_BROKER_NONE;
+#endif
         UserButtonThread->initButton(userConfig);
     } else {
         ButtonConfig userConfigNoScreen;

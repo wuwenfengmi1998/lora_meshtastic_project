@@ -10,6 +10,7 @@
  *   - P1.2：电源使能（POWER_EN），高电平有效，驱动 MOS 管维持供电
  *   - P1.3：电源开机按钮（POWER_BOOT），输入，低电平有效（按键按下接地）
  *   - P1.4：LoRa RST 输出（通过 I²C 控制 RadioLib 复位序列）
+ *   - P1.5：状态指示灯，低电平点亮
  *
  * 电源管理逻辑：
  *   开机：物理按键按下 → MOS 导通 → ESP32/TCA9535 得电
@@ -83,6 +84,7 @@
 #define TCA9535_BIT_P12  (1u << 2) // POWER_EN 输出
 #define TCA9535_BIT_P13  (1u << 3) // POWER_BOOT 输入
 #define TCA9535_BIT_P14  (1u << 4) // LoRa RST 输出
+#define TCA9535_BIT_P15  (1u << 5) // 状态指示灯输出（低电平点亮）
 
 /**
  * 通过 I²C 控制 TCA9535 P1.2 上的电源使能（POWER_EN）。
@@ -161,6 +163,33 @@ static inline bool tca9535LoraReset(bool high)
 }
 
 /**
+ * 通过 I²C 控制 TCA9535 P1.5 上的状态指示灯。
+ * 低电平点亮，高电平熄灭。
+ * @param on true=点亮（低电平），false=熄灭（高电平）
+ */
+static inline bool tca9535StatusLed(bool on)
+{
+    Wire.beginTransmission(TCA9535_I2C_ADDR);
+    Wire.write(TCA9535_REG_OUTPUT_P1);
+    if (Wire.endTransmission(false) != 0)
+        return false;
+    if (Wire.requestFrom((uint8_t)TCA9535_I2C_ADDR, (uint8_t)1) != 1)
+        return false;
+    uint8_t p1Out = Wire.read();
+
+    // 修改 P1.5 位：低电平点亮
+    if (on)
+        p1Out &= ~TCA9535_BIT_P15; // 拉低 = 点亮
+    else
+        p1Out |= TCA9535_BIT_P15;  // 拉高 = 熄灭
+
+    Wire.beginTransmission(TCA9535_I2C_ADDR);
+    Wire.write(TCA9535_REG_OUTPUT_P1);
+    Wire.write(p1Out);
+    return (Wire.endTransmission() == 0);
+}
+
+/**
  * 电源管理状态机
  */
 enum class TCA9535PowerState : uint8_t {
@@ -201,6 +230,10 @@ class TCA9535ButtonThread : public Observable<const InputEvent *>, public concur
 
     // 上次扫描结果（16 位，每 bit 对应 row*4+col），用于边沿检测
     uint16_t _lastKeys = 0x0000;
+
+    // P1.5 状态灯闪烁控制
+    bool _statusLedOn = false;
+    uint32_t _statusLedToggleMs = 0;
 
     // 写寄存器
     bool writeReg(uint8_t reg, uint8_t val);
