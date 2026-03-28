@@ -85,6 +85,8 @@
 #define TCA9535_BIT_P13  (1u << 3) // POWER_BOOT 输入
 #define TCA9535_BIT_P14  (1u << 4) // LoRa RST 输出
 #define TCA9535_BIT_P15  (1u << 5) // 状态指示灯输出（低电平点亮）
+#define TCA9535_BIT_P16  (1u << 6) // GPS RST 输出
+#define TCA9535_BIT_P17  (1u << 7) // GPS EN 输出（高电平有效）
 
 /**
  * 通过 I²C 控制 TCA9535 P1.2 上的电源使能（POWER_EN）。
@@ -182,6 +184,57 @@ static inline bool tca9535StatusLed(bool on)
         p1Out &= ~TCA9535_BIT_P15; // 拉低 = 点亮
     else
         p1Out |= TCA9535_BIT_P15;  // 拉高 = 熄灭
+
+    Wire.beginTransmission(TCA9535_I2C_ADDR);
+    Wire.write(TCA9535_REG_OUTPUT_P1);
+    Wire.write(p1Out);
+    return (Wire.endTransmission() == 0);
+}
+
+/**
+ * 通过 I²C 控制 TCA9535 P1.6 上的 GPS RST。
+ * @param high true=释放复位（高电平），false=触发复位（低电平）
+ */
+static inline bool tca9535GpsReset(bool high)
+{
+    Wire.beginTransmission(TCA9535_I2C_ADDR);
+    Wire.write(TCA9535_REG_OUTPUT_P1);
+    if (Wire.endTransmission(false) != 0)
+        return false;
+    if (Wire.requestFrom((uint8_t)TCA9535_I2C_ADDR, (uint8_t)1) != 1)
+        return false;
+    uint8_t p1Out = Wire.read();
+
+    if (high)
+        p1Out |= TCA9535_BIT_P16;  // 拉高 = 释放复位
+    else
+        p1Out &= ~TCA9535_BIT_P16; // 拉低 = 触发复位
+
+    Wire.beginTransmission(TCA9535_I2C_ADDR);
+    Wire.write(TCA9535_REG_OUTPUT_P1);
+    Wire.write(p1Out);
+    return (Wire.endTransmission() == 0);
+}
+
+/**
+ * 通过 I²C 控制 TCA9535 P1.7 上的 GPS EN。
+ * 高电平有效：拉高 = GPS 上电，拉低 = GPS 断电。
+ * @param on true=上电（高电平），false=断电（低电平）
+ */
+static inline bool tca9535GpsEn(bool on)
+{
+    Wire.beginTransmission(TCA9535_I2C_ADDR);
+    Wire.write(TCA9535_REG_OUTPUT_P1);
+    if (Wire.endTransmission(false) != 0)
+        return false;
+    if (Wire.requestFrom((uint8_t)TCA9535_I2C_ADDR, (uint8_t)1) != 1)
+        return false;
+    uint8_t p1Out = Wire.read();
+
+    if (on)
+        p1Out |= TCA9535_BIT_P17;  // 拉高 = GPS 上电
+    else
+        p1Out &= ~TCA9535_BIT_P17; // 拉低 = GPS 断电
 
     Wire.beginTransmission(TCA9535_I2C_ADDR);
     Wire.write(TCA9535_REG_OUTPUT_P1);

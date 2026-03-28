@@ -955,6 +955,16 @@ void setup()
                 gps = GPS::createGps();
                 if (gps) {
                     gpsStatus->observe(&gps->newStatus);
+#ifdef TCA9535_GPS_HAS_CTRL
+                    // 替换 enablePin 为 TCA9535 P1.7（GPS EN），I²C 控制
+                    // createGps() 创建了空的 GpioVirtPin，替换为实际的 TCA9535 驱动
+                    class GpioTca9535GpsEnPin : public GpioPin {
+                      public:
+                        void set(bool value) override { tca9535GpsEn(value); }
+                    } *tca9535GpsEnPin = new GpioTca9535GpsEnPin();
+                    new GpioUnaryTransformer(gps->enablePin, tca9535GpsEnPin);
+                    // GPS 已在 TCA9535 init 中上电（P1.7=高），无需额外操作
+#endif
                 } else {
                     LOG_DEBUG("Run without GPS");
                 }

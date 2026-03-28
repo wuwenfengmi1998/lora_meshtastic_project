@@ -10,6 +10,14 @@
 
 ### Added
 
+#### GPS 支持（esp32c3_moonshine_travelers）
+- 启用 GPS 子系统：`HAS_GPS 1`，UART 引脚 `GPS_RX_PIN 20` / `GPS_TX_PIN 21`
+- GPS RST（TCA9535 P1.6）和 GPS EN（TCA9535 P1.7）通过 I²C GPIO 扩展器控制
+  - 通电时 P1.6、P1.7 默认拉高（GPS 上电 + 释放复位）
+  - `tca9535GpsReset(bool high)` / `tca9535GpsEn(bool on)` — read-modify-write P1.6/P1.7
+  - `main.cpp` 中通过 `GpioUnaryTransformer` 桥接 `gps->enablePin` → `tca9535GpsEn()`
+- 配套 GPS 模块：安信可 GP-02（3.3V，NMEA 9600 bps）
+
 #### CN 频段支持
 - 新增中国 CN 频段定义：470.0–510.0 MHz，100 信道，`SETTING_MAX_POWER` 宏保护默认 3 dBm
 - 修改文件：`src/mesh/RadioInterface.cpp`（`RDEF(CN, ...)`）
@@ -32,7 +40,7 @@
   - 未按满 2 秒松开 → 不拉高 POWER_EN → MOS 断开 → 自动断电
 - 关机流程：运行中 P1.3 持续按住 2 秒 → 清空屏幕 → POWER_EN 拉低 → 用户松手后 MOS 断开断电
 - 电源状态机：`BOOT_PENDING` → `RUNNING` → `SHUTDOWN_PENDING`
-- P1 口配置：`0xEB`（P1.2=输出, P1.3=输入, P1.4=输出）
+- P1 口配置：`0x8B`（P1.2=输出, P1.3=输入, P1.4=输出, P1.5=输出, P1.6=输出, P1.7=输出）
 
 #### LoRa RST 通过 TCA9535 P1.4 控制
 - 新增 `TCA9535GpioHal` 自定义 HAL 子类（在 `src/main.cpp`）
@@ -91,4 +99,4 @@
 | esp32c3_moonshine | ESP32-C3 | E220-400M30S | 无 | 无 | BUTTON_PIN=9 | — |
 | esp32c3_moonshine (fw) | ESP32-C3 | E220-400M30S / E22_400M33S | 无 | 无 | BUTTON_PIN=9 | USB CDC, 电池 ADC |
 | esp32c3_moonshine_mv | ESP32-C3 | RA-01SC-P | SSD1306 | 有 | PCF8574 6 键 | NeoPixel, GPS EN |
-| esp32c3_moonshine_travelers | ESP32-C3 | RA-01SC-P | SH1106 | 无 | TCA9535 4×4 矩阵 | 电源管理, LoRa RST via I²C |
+| esp32c3_moonshine_travelers | ESP32-C3 | RA-01SC-P | SH1106 | **有** | TCA9535 4×4 矩阵 | 电源管理, LoRa RST via I²C, GPS RST/EN via I²C |

@@ -16,9 +16,9 @@
 #define I2C_SDA 0
 #define I2C_SCL 1
 
-#define HAS_GPS 0
-#define GPS_RX_PIN 21
-#define GPS_TX_PIN 20
+#define HAS_GPS 1
+#define GPS_RX_PIN 20
+#define GPS_TX_PIN 21
 
 
 #define BATTERY_PIN            2
@@ -35,6 +35,8 @@
 //         开机：持续按住 2 秒 → POWER_EN 拉高维持供电
 //         关机：运行中持续按住 2 秒 → POWER_EN 拉低断电
 //   - P1.4 LoRa RST 输出（通过 I²C 控制 RadioLib 复位序列）
+//   - P1.6 GPS_RST 输出（通过 tca9535GpsReset() 控制，init 中释放）
+//   - P1.7 GPS_EN 输出（高电平有效，通过 enablePin 桥接到 TCA9535）
 //   - 中断引脚 GPIO5，低电平有效，下降沿触发
 // -----------------------------------------------------------------------
 #define HAS_TCA9535_BUTTON
@@ -84,6 +86,11 @@
 #define TCA9535_LORA_RST_VIRTUAL_PIN 200
 #define TCA9535_LORA_RST_REG     TCA9535_REG_OUTPUT_P1  // P1 输出寄存器
 #define TCA9535_LORA_RST_BIT     (1u << 4)              // P1.4
+
+// GPS RST (P1.6) 和 GPS EN (P1.7) 通过 TCA9535 I²C 控制
+// 不定义 PIN_GPS_RESET/PIN_GPS_EN 为虚拟引脚（避免 GpioHwPin 访问无效 GPIO）
+// 改为在 main.cpp 中 createGps() 后替换 enablePin 为 TCA9535 GpioPin
+#define TCA9535_GPS_HAS_CTRL 1
 
 #define LORA_SCK 10
 #define LORA_MISO 6

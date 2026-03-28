@@ -58,11 +58,12 @@ bool TCA9535ButtonThread::init()
 {
     // ===================================================================
     // 第一步：配置 P1 口方向
-    // P1.2 = 输出（POWER_EN），P1.3 = 输入（POWER_BOOT），P1.4 = 输出（LoRa RST），P1.5 = 输出（状态灯）
+    // P1.2=输出(POWER_EN), P1.3=输入(POWER_BOOT), P1.4=输出(LoRa RST),
+    // P1.5=输出(状态灯), P1.6=输出(GPS RST), P1.7=输出(GPS EN)
     // Configuration 寄存器：1=input, 0=output
-    // P1.2=bit2=0, P1.3=bit3=1, P1.4=bit4=0, P1.5=bit5=0 → 0xCB (1100 1011)
+    // P1.2=0, P1.3=1, P1.4=0, P1.5=0, P1.6=0, P1.7=0 → 0x8B (1000 1011)
     // ===================================================================
-    if (!writeReg(TCA9535_REG_CONFIG_P1, 0xCB)) {
+    if (!writeReg(TCA9535_REG_CONFIG_P1, 0x8B)) {
         LOG_WARN("TCA9535: P1 config write failed");
         return false;
     }
@@ -73,6 +74,12 @@ bool TCA9535ButtonThread::init()
 
     // P1.5 状态灯默认熄灭（高电平）
     tca9535StatusLed(false);
+
+    // P1.6 GPS RST 默认释放（高电平 = 正常工作）
+    tca9535GpsReset(true);
+
+    // P1.7 GPS EN 默认打开（高电平 = GPS 上电）
+    tca9535GpsEn(true);
 
     // ===================================================================
     // 第二步：开机检测 — 等待用户持续按住 P1.3 达 2 秒
