@@ -54,6 +54,7 @@ const char *const CannedMessageModule::t9LetterMap[][5] = {
 #endif
 
 #include "graphics/ScreenFonts.h"
+#include "graphics/fonts/ChineseFont12x12.h"
 #include <Throttle.h>
 
 // Remove Canned message screen if no action is taken for some milliseconds
@@ -2061,27 +2062,47 @@ void CannedMessageModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *st
                         int spacePos = text.indexOf(' ', pos);
                         int endPos = (spacePos == -1) ? text.length() : spacePos + 1; // Include space
                         String word = text.substring(pos, endPos);
-                        int wordWidth = display->getStringWidth(word);
+
+                        // Calculate word width: ASCII chars use getStringWidth, CJK use CFONT_W
+                        int wordWidth = 0;
+                        for (int ci = 0; ci < word.length();) {
+                            int utf8len = 1;
+                            uint16_t cp = cfont12_utf8(word.c_str() + ci, &utf8len);
+                            if (cp >= 0x80 && cfont12_find(cp)) {
+                                wordWidth += CFONT_W;
+                            } else {
+                                String oneChar = word.substring(ci, ci + utf8len);
+                                wordWidth += display->getStringWidth(oneChar);
+                            }
+                            ci += utf8len;
+                        }
 
                         if (lineWidth + wordWidth > maxWidth && lineWidth > 0) {
                             lines.push_back(currentLine);
                             currentLine.clear();
                             lineWidth = 0;
                         }
-                        // If word itself too big, split by character
+                        // If word itself too big, split by character (CJK-aware)
                         if (wordWidth > maxWidth) {
-                            uint16_t charPos = 0;
+                            int charPos = 0;
                             while (charPos < word.length()) {
-                                String oneChar = word.substring(charPos, charPos + 1);
-                                int charWidth = display->getStringWidth(oneChar);
+                                int utf8len = 1;
+                                uint16_t cp = cfont12_utf8(word.c_str() + charPos, &utf8len);
+                                int charWidth;
+                                if (cp >= 0x80 && cfont12_find(cp)) {
+                                    charWidth = CFONT_W;
+                                } else {
+                                    String oneChar = word.substring(charPos, charPos + utf8len);
+                                    charWidth = display->getStringWidth(oneChar);
+                                }
                                 if (lineWidth + charWidth > maxWidth && lineWidth > 0) {
                                     lines.push_back(currentLine);
                                     currentLine.clear();
                                     lineWidth = 0;
                                 }
-                                currentLine.push_back({false, oneChar});
+                                currentLine.push_back({false, word.substring(charPos, charPos + utf8len)});
                                 lineWidth += charWidth;
-                                charPos++;
+                                charPos += utf8len;
                             }
                         } else {
                             currentLine.push_back({false, word});
@@ -2114,8 +2135,23 @@ void CannedMessageModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *st
                             nextX += emote->width + 2;
                         }
                     } else {
-                        display->drawString(nextX, yLine, token.second);
-                        nextX += display->getStringWidth(token.second);
+                        // Mixed ASCII + Chinese rendering
+                        const char *str = token.second.c_str();
+                        const char *p = str;
+                        while (*p) {
+                            int utf8len = 1;
+                            uint16_t cp = cfont12_utf8(p, &utf8len);
+                            if (cp >= 0x80 && cfont12_find(cp)) {
+                                // CJK character: draw using Chinese bitmap font
+                                nextX += cfont12_draw(display, nextX, yLine, cp);
+                            } else {
+                                // ASCII / non-CJK: render single char via drawString
+                                String oneChar = String(p).substring(0, utf8len);
+                                display->drawString(nextX, yLine, oneChar);
+                                nextX += display->getStringWidth(oneChar);
+                            }
+                            p += utf8len;
+                        }
                     }
                 }
                 yLine += rowHeight;

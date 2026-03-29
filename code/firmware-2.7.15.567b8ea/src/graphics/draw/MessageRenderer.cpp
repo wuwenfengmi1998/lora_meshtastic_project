@@ -30,6 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "configuration.h"
 #include "gps/RTC.h"
 #include "graphics/ScreenFonts.h"
+#include "graphics/fonts/ChineseFont12x12.h"
 #include "graphics/SharedUIDisplay.h"
 #include "graphics/emotes.h"
 #include "main.h"
@@ -60,6 +61,46 @@ namespace MessageRenderer
 static size_t cachedKey = 0;
 static std::vector<std::string> cachedLines;
 static std::vector<int> cachedHeights;
+
+// Helper: measure mixed ASCII+CJK string width
+static int measureMixedWidth(OLEDDisplay *display, const std::string &s)
+{
+    int w = 0;
+    for (size_t i = 0; i < s.length();) {
+        int utf8len = 1;
+        uint16_t cp = cfont12_utf8(s.c_str() + i, &utf8len);
+        if (cp >= 0x80 && cfont12_find(cp)) {
+            w += CFONT_W;
+        } else {
+            std::string oneChar = s.substr(i, utf8len);
+            w += display->getStringWidth(oneChar.c_str());
+        }
+        i += utf8len;
+    }
+    return w;
+}
+
+// Helper: render a mixed ASCII+CJK string at (x, y), return total width
+static int drawMixedString(OLEDDisplay *display, int x, int y, const std::string &s, bool inBold)
+{
+    int cursorX = x;
+    for (size_t i = 0; i < s.length();) {
+        int utf8len = 1;
+        uint16_t cp = cfont12_utf8(s.c_str() + i, &utf8len);
+        if (cp >= 0x80 && cfont12_find(cp)) {
+            cursorX += cfont12_draw(display, cursorX, y, cp);
+        } else {
+            std::string oneChar = s.substr(i, utf8len);
+            if (inBold) {
+                display->drawString(cursorX + 1, y, oneChar.c_str());
+            }
+            display->drawString(cursorX, y, oneChar.c_str());
+            cursorX += display->getStringWidth(oneChar.c_str());
+        }
+        i += utf8len;
+    }
+    return cursorX - x;
+}
 
 void drawStringWithEmotes(OLEDDisplay *display, int x, int y, const std::string &line, const Emote *emotes, int emoteCount)
 {
@@ -132,16 +173,7 @@ void drawStringWithEmotes(OLEDDisplay *display, int x, int y, const std::string 
 
         if (nextControl > i) {
             std::string textChunk = line.substr(i, nextControl - i);
-            if (inBold) {
-                // Faux bold: draw twice, offset by 1px
-                display->drawString(cursorX + 1, fontY, textChunk.c_str());
-            }
-            display->drawString(cursorX, fontY, textChunk.c_str());
-#if defined(OLED_UA) || defined(OLED_RU)
-            cursorX += display->getStringWidth(textChunk.c_str(), textChunk.length(), true);
-#else
-            cursorX += display->getStringWidth(textChunk.c_str());
-#endif
+            cursorX += drawMixedString(display, cursorX, fontY, textChunk, inBold);
             i = nextControl;
             continue;
         }
@@ -155,16 +187,7 @@ void drawStringWithEmotes(OLEDDisplay *display, int x, int y, const std::string 
         } else {
             // No more emotes — render the rest of the line
             std::string remaining = line.substr(i);
-            if (inBold) {
-                display->drawString(cursorX + 1, fontY, remaining.c_str());
-            }
-            display->drawString(cursorX, fontY, remaining.c_str());
-#if defined(OLED_UA) || defined(OLED_RU)
-            cursorX += display->getStringWidth(remaining.c_str(), remaining.length(), true);
-#else
-            cursorX += display->getStringWidth(remaining.c_str());
-#endif
-
+            cursorX += drawMixedString(display, cursorX, fontY, remaining, inBold);
             break;
         }
     }
@@ -433,40 +456,68 @@ std::vector<std::string> generateLines(OLEDDisplay *display, const char *headerS
     lines.push_back(std::string(headerStr)); // Header line is always first
 
     std::string line, word;
-    for (int i = 0; messageBuf[i]; ++i) {
-        char ch = messageBuf[i];
+    int i = 0;
+    while (messageBuf[i]) {
+        // Check for smart quote U+2019 (E2 80 99)
         if ((unsigned char)messageBuf[i] == 0xE2 && (unsigned char)messageBuf[i + 1] == 0x80 &&
             (unsigned char)messageBuf[i + 2] == 0x99) {
-            ch = '\''; // plain apostrophe
-            i += 2;    // skip over the extra UTF-8 bytes
-        }
-        if (ch == '\n') {
+            word += '\'';
+            i += 3;
+        } else if ((unsigned char)messageBuf[i] == '\n') {
             if (!word.empty())
                 line += word;
             if (!line.empty())
                 lines.push_back(line);
             line.clear();
             word.clear();
-        } else if (ch == ' ') {
+            i++;
+        } else if ((unsigned char)messageBuf[i] == ' ') {
             line += word + ' ';
             word.clear();
+            i++;
         } else {
-            word += ch;
-            std::string test = line + word;
-// Keep these lines for diagnostics
-// LOG_INFO("Char: '%c' (0x%02X)", ch, (unsigned char)ch);
-// LOG_INFO("Current String: %s", test.c_str());
-// Note: there are boolean comparison uint16 (getStringWidth) with int (textWidth), hope textWidth is always positive :)
-#if defined(OLED_UA) || defined(OLED_RU)
-            uint16_t strWidth = display->getStringWidth(test.c_str(), test.length(), true);
-#else
-            uint16_t strWidth = display->getStringWidth(test.c_str());
-#endif
-            if (strWidth > textWidth) {
-                if (!line.empty())
+            // Decode UTF-8 character
+            int utf8len = 1;
+            uint16_t cp = cfont12_utf8(messageBuf + i, &utf8len);
+            std::string chStr(messageBuf + i, utf8len);
+            i += utf8len;
+
+            bool isCJK = (cp >= 0x80 && cfont12_find(cp));
+
+            // CJK characters are treated as individual "words" (break before/after them)
+            if (isCJK && !word.empty()) {
+                // Flush current ASCII word first
+                std::string test = line + word;
+                if (measureMixedWidth(display, test) > textWidth && !line.empty()) {
                     lines.push_back(line);
-                line = word;
+                    line = word;
+                } else {
+                    line = test;
+                }
                 word.clear();
+            }
+
+            word += chStr;
+
+            if (isCJK) {
+                // CJK char is its own word — immediately check if it fits
+                std::string test = line + word;
+                if (measureMixedWidth(display, test) > textWidth && !line.empty()) {
+                    lines.push_back(line);
+                    line = word;
+                } else {
+                    line = test;
+                }
+                word.clear();
+            } else {
+                // ASCII char — accumulate in word, check width
+                std::string test = line + word;
+                if (measureMixedWidth(display, test) > textWidth) {
+                    if (!line.empty())
+                        lines.push_back(line);
+                    line = word;
+                    word.clear();
+                }
             }
         }
     }
@@ -486,7 +537,9 @@ std::vector<int> calculateLineHeights(const std::vector<std::string> &lines, con
     for (const auto &_line : lines) {
         int lineHeight = FONT_HEIGHT_SMALL;
         bool hasEmote = false;
+        bool hasCJK = false;
 
+        // Check for emotes
         for (int i = 0; i < numEmotes; ++i) {
             const Emote &e = emotes[i];
             if (_line.find(e.label) != std::string::npos) {
@@ -495,8 +548,20 @@ std::vector<int> calculateLineHeights(const std::vector<std::string> &lines, con
             }
         }
 
-        // Apply tighter spacing if no emotes on this line
-        if (!hasEmote) {
+        // Check for CJK characters
+        for (size_t ci = 0; ci < _line.length();) {
+            int utf8len = 1;
+            uint16_t cp = cfont12_utf8(_line.c_str() + ci, &utf8len);
+            if (cp >= 0x80 && cfont12_find(cp)) {
+                hasCJK = true;
+                lineHeight = std::max(lineHeight, CFONT_H);
+                break;
+            }
+            ci += utf8len;
+        }
+
+        // Apply tighter spacing if no emotes/CJK on this line
+        if (!hasEmote && !hasCJK) {
             lineHeight -= 2; // reduce by 2px for tighter spacing
             if (lineHeight < 8)
                 lineHeight = 8; // minimum safety

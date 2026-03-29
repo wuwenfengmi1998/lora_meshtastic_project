@@ -36,8 +36,7 @@
   - `tca9535PowerEn(bool on)` — read-modify-write P1.2，static inline
 - P1.3 = POWER_BOOT 输入，低电平有效（按键按下接地）
   - `tca9535ReadPowerBoot()` — 读取 P1.3 状态，static inline
-- 开机流程：物理按键 → MOS 导通 → ESP32 得电 → main.cpp 立即锁 POWER_EN → 等待 P1.3 持续按住 2 秒确认 → 启动系统
-  - 3 秒内未按满 2 秒 → POWER_EN 拉低 → MOS 断开 → 自动断电
+- 开机流程：物理按键 → MOS 导通 → ESP32 得电 → `Wire.begin()` 后立即 `tca9535PowerEn(true)` 锁住供电 → 启动系统
 - 关机流程：运行中 P1.3 持续按住 2 秒 → 清空屏幕 → POWER_EN 拉低 → 用户松手后 MOS 断开断电
 - 电源状态机：`BOOT_PENDING` → `RUNNING` → `SHUTDOWN_PENDING`
 - P1 口配置：`0x8B`（P1.2=输出, P1.3=输入, P1.4=输出, P1.5=输出, P1.6=输出, P1.7=输出）
@@ -63,10 +62,21 @@
 
 ### Changed
 
-#### 开机流程改为 early-lock + 确认窗口
+#### 中文 12×12 点阵字库（esp32c3_moonshine_travelers）
+- 新增 `src/graphics/fonts/ChineseFont12x12.h`：21075 字形，~535 KB flash
+  - 生成工具：`tools/gen_chinese_font.mjs`（`@napi-rs/canvas` 光栅化 + 位图提取）
+  - Unicode 覆盖：U+4E00–U+9FFF（CJK 统一汉字全集，含 GB2312 6763 字）+ CJK 标点 + 全角 ASCII
+  - 像素判定：透明背景 + 黑色前景，alpha > 80 阈值
+- `MessageRenderer.cpp`（收到的消息显示）支持 CJK 渲染：
+  - `generateLines()` UTF-8 感知逐字符分词，CJK 字符作为独立 word
+  - `drawStringWithEmotes()` 文本段混合渲染（ASCII 用内置字体，CJK 用 `cfont12_draw`）
+  - `calculateLineHeights()` CJK 感知行高计算
+- `CannedMessageModule.cpp`（快捷回复 FREETEXT 编辑）支持 CJK 渲染：
+  - FREETEXT 区域用 `cfont12_drawStr()` 混合渲染 ASCII + CJK
+
+#### 开机流程改为 early-lock
 - `main.cpp`：`Wire.begin()` 后立即 `tca9535PowerEn(true)` 锁住供电，防止初始化途中掉电
-- 新增开机确认窗口：等待 P1.3 持续按住 2 秒确认开机，最多等 3 秒，超时则断电关机
-- `TCA9535ButtonThread::init()` 不再负责开机确认，只设置状态机为 RUNNING
+- 无需额外确认步骤，用户按下按键即开机
 
 #### 快捷回复 ↔ 九宫格输入导航（esp32c3_moonshine_travelers）
 - **INACTIVE**：UP/DOWN 进入快捷回复列表（恢复原始行为）
@@ -98,7 +108,10 @@
 
 ### Fixed
 
-- **矩阵扫描 cols 整数提升 bug**：`~` 运算符对 `uint8_t` 提升为 `int`，导致 `cols` 高 4 位被污染，key4~key15 永远无法触发
+- **开机确认窗口导致无法启动**：`Wire.begin()` 后要求 P1.3 持续按住 2 秒确认开机，但物理开机流程中用户按下按键后很快松手，3 秒窗口内无法满足 2 秒持续按住条件，导致每次触发 `Boot not confirmed, shutting down` 并断电
+  - 修复：删除开机确认窗口，只保留 `tca9535PowerEn(true)` 立即锁住供电
+- **TCA9535 P1 口配置误改导致 MOS 断电**（历史记录）：加 CHARGE_DET 后将 P1 config 从正确值改为 `0x8D`，P1.2(POWER_EN) 被误配成输入（高阻），MOS 失控断电
+  - 正确值：`0x0A`（P1.1=输入 CHARGE_DET, P1.3=输入 POWER_BOOT, 其余输出）：`~` 运算符对 `uint8_t` 提升为 `int`，导致 `cols` 高 4 位被污染，key4~key15 永远无法触发
   - 修复：`((~(p0In & 0xF0)) >> 4) & 0x0F` — 显式截断到 4 bit
 - **LTO 链接错误**：编译时 `-flto` 导致 `undefined reference to TCA9535ButtonThread::*`
   - 原因：.h/.cpp 中的 `#if defined(HAS_TCA9535_BUTTON)` 守卫导致部分编译单元中符号被丢弃

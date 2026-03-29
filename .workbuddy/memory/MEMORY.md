@@ -101,3 +101,14 @@
 - 排除了大量 RadioLib 不用的协议（AX25/LoRaWAN/APRS 等）以节省 flash
 - MAX_THREADS=40
 - 默认 env：tbeam（需要切换到 esp32c3_moonshine 系列时要指定 env）
+- **Flash 占用**（esp32c3_moonshine_travelers）：text≈1.92MB, data≈0.63MB, 总≈2.57MB / 4MB
+- **分区表**（partition-table.csv）：app=0x2C0000(2.75MB), OTA=0x030000(192KB), spiffs=0x100000(1MB)
+- **中文 12×12 字库**：`src/graphics/fonts/ChineseFont12x12.h`，21075 字形，535KB flash
+  - 生成工具：`tools/gen_chinese_font.mjs`（需 npm install @napi-rs/canvas）
+  - 覆盖：U+4E00-U+9FFF（CJK 统一汉字全集，含 GB2312 6763 字）
+  - 像素判定：透明背景 + 黑色前景，alpha > 128 阈值（去掉抗锯齿毛边，字形锐利）
+  - ⚠️ 阈值 40 太低→字体膨胀变粗；128 合适→清晰锐利
+  - ⚠️ `imageSmoothingEnabled` 对 canvas fillText 无效
+  - 渲染函数：`cfont12_find()` / `cfont12_draw()` / `cfont12_utf8()` / `cfont12_drawStr()`
+  - 集成点：CannedMessageModule drawFrame FREETEXT 部分（混合 ASCII+CJK 渲染）
+  - MessageRenderer（收到消息显示）也已支持：generateLines + drawStringWithEmotes + calculateLineHeights 均改为 CJK 感知
