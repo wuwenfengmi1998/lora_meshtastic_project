@@ -584,6 +584,13 @@ void setup()
     Wire.begin();
 #elif defined(I2C_SDA) && !defined(ARCH_RP2040)
     Wire.begin(I2C_SDA, I2C_SCL);
+#ifdef HAS_TCA9535_BUTTON
+    // TCA9535 POWER_EN 必须在 I²C 初始化完成后立即拉高，否则用户松开按键后
+    // MOS 断电，系统在 setup() 中途就会掉电。此处无条件锁住供电，
+    // 后续 tca9535ButtonThread::init() 只负责键盘和状态机初始化。
+    tca9535PowerEn(true);
+    LOG_INFO("TCA9535: POWER_EN latched HIGH (early boot)");
+#endif
 #elif defined(ARCH_PORTDUINO)
     if (portduino_config.i2cdev != "") {
         LOG_INFO("Use %s as I2C device", portduino_config.i2cdev.c_str());

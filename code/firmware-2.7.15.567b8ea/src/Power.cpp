@@ -20,7 +20,7 @@
 #include "meshUtils.h"
 #include "sleep.h"
 
-#ifdef TCA9535_LORA_RST_VIRTUAL_PIN
+#ifdef HAS_TCA9535_BUTTON
 #include "input/TCA9535ButtonThread.h"
 #endif
 
@@ -445,7 +445,10 @@ class AnalogBatteryLevel : public HasBatteryLevel
     /// so we use EXT_PWR_DETECT GPIO pin to detect external power source
     virtual bool isVbusIn() override
     {
-#ifdef EXT_PWR_DETECT
+#ifdef TCA9535_CHARGE_DET_PIN
+        // 使用 TCA9535 CHARGE_DET 检测外部供电（高电平=充电中=有外部电源）
+        return tca9535IsCharging;
+#elif defined(EXT_PWR_DETECT)
 #if defined(HELTEC_CAPSULE_SENSOR_V3) || defined(HELTEC_SENSOR_HUB)
         // if external powered that pin will be pulled down
         if (digitalRead(EXT_PWR_DETECT) == LOW) {
@@ -472,7 +475,9 @@ class AnalogBatteryLevel : public HasBatteryLevel
             return (rak9154Sensor.isCharging()) ? OptTrue : OptFalse;
         }
 #endif
-#ifdef EXT_CHRG_DETECT
+#ifdef TCA9535_CHARGE_DET_PIN
+        return tca9535IsCharging;
+#elif defined(EXT_CHRG_DETECT)
         return digitalRead(EXT_CHRG_DETECT) == ext_chrg_detect_value;
 #else
 #if HAS_TELEMETRY && !MESHTASTIC_EXCLUDE_ENVIRONMENTAL_SENSOR && !defined(DISABLE_INA_CHARGING_DETECTION)

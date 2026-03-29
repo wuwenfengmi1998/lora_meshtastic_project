@@ -322,14 +322,27 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
     if (event->kbchar == INPUT_BROKER_MSG_TAB && handleTabSwitch(event))
         return 1;
 
-    // Matrix keypad: If matrix key, trigger action select for canned message
+    // Matrix keypad: If matrix key with printable char, let it fall through to
+    // the normal input path (INACTIVE→FREETEXT or FREETEXT→append char).
+    // Only intercept as canned-message selector if kbchar is a valid 1-based index
+    // (e.g., RAK14004 sends kbchar=1..16).
     if (event->inputEvent == INPUT_BROKER_MATRIXKEY) {
-        runState = CANNED_MESSAGE_RUN_STATE_ACTION_SELECT;
-        payload = INPUT_BROKER_MATRIXKEY;
-        currentMessageIndex = event->kbchar - 1;
-        lastTouchMillis = millis();
-        requestFocus();
-        return 1;
+        // Printable ASCII (32-126): treat as keyboard input, don't intercept
+        if (event->kbchar >= 32 && event->kbchar <= 126) {
+            // Fall through to normal input handling below
+        } else {
+            // 1-based index from hardware like RAK14004
+            int idx = event->kbchar - 1;
+            if (idx < 0 || idx >= messagesCount) {
+                return 0; // kbchar out of range, ignore
+            }
+            runState = CANNED_MESSAGE_RUN_STATE_ACTION_SELECT;
+            payload = INPUT_BROKER_MATRIXKEY;
+            currentMessageIndex = idx;
+            lastTouchMillis = millis();
+            requestFocus();
+            return 1;
+        }
     }
 
     // Always normalize navigation/select buttons for further handlers

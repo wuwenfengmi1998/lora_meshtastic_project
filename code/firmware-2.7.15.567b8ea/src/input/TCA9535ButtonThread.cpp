@@ -5,37 +5,66 @@
 using namespace concurrency;
 
 // 默认按键映射（4×4 矩阵，行优先：KEY[0]=ROW0·COL0 ... KEY[15]=ROW3·COL3）
-// 仅保留方向键，SELECT/CANCEL 由其他按键处理
 // variant.h 中可用 #define TCA9535_KEY_MAP { ... } 覆盖
 // -----------------------------------------------------------------------
 #ifndef TCA9535_KEY_MAP
 #define TCA9535_KEY_MAP                                                                                                         \
     {                                                                                                                           \
-        INPUT_BROKER_NONE,   /* key0  = ROW0·COL0 */                                                                           \
-        INPUT_BROKER_NONE,   /* key1  = ROW0·COL1 */                                                                           \
-        INPUT_BROKER_NONE,   /* key2  = ROW0·COL2 */                                                                           \
-        INPUT_BROKER_UP,     /* key3  = ROW0·COL3 */                                                                           \
-        INPUT_BROKER_NONE,   /* key4  = ROW1·COL0 */                                                                           \
-        INPUT_BROKER_NONE,   /* key5  = ROW1·COL1 */                                                                           \
-        INPUT_BROKER_NONE,   /* key6  = ROW1·COL2 */                                                                           \
-        INPUT_BROKER_DOWN,   /* key7  = ROW1·COL3 */                                                                           \
-        INPUT_BROKER_NONE,   /* key8  = ROW2·COL0 */                                                                           \
-        INPUT_BROKER_NONE,   /* key9  = ROW2·COL1 */                                                                           \
-        INPUT_BROKER_NONE,   /* key10 = ROW2·COL2 */                                                                           \
-        INPUT_BROKER_LEFT,   /* key11 = ROW2·COL3 */                                                                           \
-        INPUT_BROKER_NONE,   /* key12 = ROW3·COL0 */                                                                           \
-        INPUT_BROKER_NONE,   /* key13 = ROW3·COL1 */                                                                           \
-        INPUT_BROKER_NONE,   /* key14 = ROW3·COL2 */                                                                           \
-        INPUT_BROKER_RIGHT,  /* key15 = ROW3·COL3 */                                                                           \
+        INPUT_BROKER_MATRIXKEY, /* key0  = ROW0·COL0 → '1' */                                                                \
+        INPUT_BROKER_MATRIXKEY, /* key1  = ROW0·COL1 → '2' */                                                                \
+        INPUT_BROKER_MATRIXKEY, /* key2  = ROW0·COL2 → '3' */                                                                \
+        INPUT_BROKER_UP,        /* key3  = ROW0·COL3 */                                                                       \
+        INPUT_BROKER_MATRIXKEY, /* key4  = ROW1·COL0 → '4' */                                                                \
+        INPUT_BROKER_MATRIXKEY, /* key5  = ROW1·COL1 → '5' */                                                                \
+        INPUT_BROKER_MATRIXKEY, /* key6  = ROW1·COL2 → '6' */                                                                \
+        INPUT_BROKER_DOWN,      /* key7  = ROW1·COL3 */                                                                       \
+        INPUT_BROKER_MATRIXKEY, /* key8  = ROW2·COL0 → '7' */                                                                \
+        INPUT_BROKER_MATRIXKEY, /* key9  = ROW2·COL1 → '8' */                                                                \
+        INPUT_BROKER_MATRIXKEY, /* key10 = ROW2·COL2 → '9' */                                                                \
+        INPUT_BROKER_LEFT,      /* key11 = ROW2·COL3 */                                                                       \
+        INPUT_BROKER_MATRIXKEY, /* key12 = ROW3·COL0 → '*' */                                                                \
+        INPUT_BROKER_MATRIXKEY, /* key13 = ROW3·COL1 → '0' */                                                                \
+        INPUT_BROKER_MATRIXKEY, /* key14 = ROW3·COL2 → '#' */                                                                \
+        INPUT_BROKER_RIGHT,     /* key15 = ROW3·COL3 */                                                                       \
+    }
+#endif
+
+// 默认按键字符映射（仅 INPUT_BROKER_MATRIXKEY 类型的按键使用）
+// 传 ASCII 字符，CannedMessageModule 会根据 kbchar 走文本输入路径
+// variant.h 中可用 #define TCA9535_KEY_CHAR_MAP { ... } 覆盖
+#ifndef TCA9535_KEY_CHAR_MAP
+#define TCA9535_KEY_CHAR_MAP                                                                                                    \
+    {                                                                                                                           \
+        '1', /* key0  = ROW0·COL0 */                                                                                           \
+        '2', /* key1  = ROW0·COL1 */                                                                                           \
+        '3', /* key2  = ROW0·COL2 */                                                                                           \
+         0,  /* key3  = ROW0·COL3 → 方向键，无字符 */                                                                          \
+        '4', /* key4  = ROW1·COL0 */                                                                                           \
+        '5', /* key5  = ROW1·COL1 */                                                                                           \
+        '6', /* key6  = ROW1·COL2 */                                                                                           \
+         0,  /* key7  = ROW1·COL3 → 方向键，无字符 */                                                                          \
+        '7', /* key8  = ROW2·COL0 */                                                                                           \
+        '8', /* key9  = ROW2·COL1 */                                                                                           \
+        '9', /* key10 = ROW2·COL2 */                                                                                           \
+         0,  /* key11 = ROW2·COL3 → 方向键，无字符 */                                                                          \
+        '*', /* key12 = ROW3·COL0 */                                                                                           \
+        '0', /* key13 = ROW3·COL1 */                                                                                           \
+        '#', /* key14 = ROW3·COL2 */                                                                                           \
+         0,  /* key15 = ROW3·COL3 → 方向键，无字符 */                                                                          \
     }
 #endif
 
 static const input_broker_event tca9535KeyMap[TCA9535_KEY_COUNT] = TCA9535_KEY_MAP;
+static const unsigned char tca9535KeyCharMap[TCA9535_KEY_COUNT] = TCA9535_KEY_CHAR_MAP;
 
 // -----------------------------------------------------------------------
 // 中断标志（ISR -> runOnce 通信，volatile，只做 set/clear）
 // -----------------------------------------------------------------------
 static volatile bool tca9535IntPending = false;
+
+#ifdef HAS_TCA9535_BUTTON
+volatile bool tca9535IsCharging = false;
+#endif
 
 #ifdef TCA9535_INT_PIN
 static void IRAM_ATTR tca9535ISR()
@@ -58,18 +87,23 @@ bool TCA9535ButtonThread::init()
 {
     // ===================================================================
     // 第一步：配置 P1 口方向
-    // P1.2=输出(POWER_EN), P1.3=输入(POWER_BOOT), P1.4=输出(LoRa RST),
-    // P1.5=输出(状态灯), P1.6=输出(GPS RST), P1.7=输出(GPS EN)
+    // P1.0=输出(未用), P1.1=输入(CHARGE_DET), P1.2=输出(POWER_EN),
+    // P1.3=输入(POWER_BOOT), P1.4=输出(LoRa RST), P1.5=输出(状态灯),
+    // P1.6=输出(GPS RST), P1.7=输出(GPS EN)
     // Configuration 寄存器：1=input, 0=output
-    // P1.2=0, P1.3=1, P1.4=0, P1.5=0, P1.6=0, P1.7=0 → 0x8B (1000 1011)
+    // bit: P1.7 P1.6 P1.5 P1.4 P1.3 P1.2 P1.1 P1.0
+    //        0    0    0    0    1    0    1    0   = 0x0A
     // ===================================================================
-    if (!writeReg(TCA9535_REG_CONFIG_P1, 0x8B)) {
+    if (!writeReg(TCA9535_REG_CONFIG_P1, 0x0A)) {
         LOG_WARN("TCA9535: P1 config write failed");
         return false;
     }
 
+    // P1.0 键盘背光默认熄灭（低电平）
+    tca9535Backlight(false);
+
     // 确保 P1.4 输出高电平（LoRa RST 高 = 正常工作）
-    // 注意：此时不拉高 POWER_EN，等开机确认后再拉高
+    // 注意：POWER_EN 已由 main.cpp 在 Wire.begin() 后立即拉高，此处无需再操作
     tca9535LoraReset(true);
 
     // P1.5 状态灯默认熄灭（高电平）
@@ -82,54 +116,13 @@ bool TCA9535ButtonThread::init()
     tca9535GpsEn(true);
 
     // ===================================================================
-    // 第二步：开机检测 — 等待用户持续按住 P1.3 达 2 秒
-    //   物理按键已使 MOS 导通（ESP32 得电），但 POWER_EN 尚未拉高
-    //   用户必须持续按住 2 秒，否则 init() 返回 false → 系统不完成启动
+    // 第二步：POWER_EN 已由 main.cpp 在 Wire.begin() 后立即拉高（早期锁定）
+    //   此处只需确认状态机进入 RUNNING，不再需要等待 P1.3 按住 2 秒。
+    //   原因：系统从 Wire.begin() 到 tca9535ButtonThread::init() 之间需要
+    //   数秒的初始化时间（LoRa/WiFi/BLE/GPS 等），用户早已松开按键，
+    //   无法在此处等待。开机供电维持已在 main.cpp 最早期完成。
     // ===================================================================
-    LOG_INFO("TCA9535: Waiting for power button hold (%d ms)...", TCA9535_POWER_BOOT_HOLD_MS);
-
-    uint32_t holdStart = 0;
-    bool wasPressed = false;
-
-    while (true) {
-        bool pressed = tca9535ReadPowerBoot(_wire);
-
-        if (pressed && !wasPressed) {
-            // 按键刚按下，记录起始时间
-            holdStart = millis();
-            wasPressed = true;
-        } else if (!pressed && wasPressed) {
-            // 按键松开 — 检查是否按够时间
-            uint32_t held = millis() - holdStart;
-            if (held >= TCA9535_POWER_BOOT_HOLD_MS) {
-                // 按够 2 秒，确认开机
-                LOG_INFO("TCA9535: Power button held %lu ms -> boot confirmed", held);
-                break;
-            } else {
-                // 未按够，重新等待
-                LOG_INFO("TCA9535: Power button released after %lu ms (need %d), waiting...", held,
-                         TCA9535_POWER_BOOT_HOLD_MS);
-                wasPressed = false;
-            }
-        } else if (pressed && wasPressed) {
-            // 持续按住中，检查是否已达 2 秒（即使没松开也确认）
-            if ((millis() - holdStart) >= TCA9535_POWER_BOOT_HOLD_MS) {
-                LOG_INFO("TCA9535: Power button held >= %d ms -> boot confirmed", TCA9535_POWER_BOOT_HOLD_MS);
-                break;
-            }
-        }
-
-        delay(TCA9535_POWER_BOOT_CHECK_MS);
-    }
-
-    // ===================================================================
-    // 第三步：确认开机 → 拉高 POWER_EN 维持供电
-    // ===================================================================
-    if (!tca9535PowerEn(true)) {
-        LOG_WARN("TCA9535: Failed to set POWER_EN high");
-        return false;
-    }
-    LOG_INFO("TCA9535: POWER_EN set HIGH (system powered)");
+    LOG_INFO("TCA9535: POWER_EN already latched in early boot, skipping boot-hold wait");
     _powerState = TCA9535PowerState::RUNNING;
 
     // ===================================================================
@@ -207,6 +200,28 @@ int32_t TCA9535ButtonThread::runOnce()
     }
 
     // ===================================================================
+    // P1.0 键盘背光：有按键按下时点亮，5 秒无操作自动熄灭
+    // ===================================================================
+    if (_backlightOn && millis() - _backlightLastMs >= 5000) {
+        _backlightOn = false;
+        tca9535Backlight(false);
+    }
+
+    // ===================================================================
+    // 充电检测：轮询 P1.1 (CHARGE_DET)，高电平=正在充电
+    // ===================================================================
+#ifdef TCA9535_CHARGE_DET_PIN
+    if (millis() - _chargeDetLastMs >= 2000) {
+        _chargeDetLastMs = millis();
+        bool charging = tca9535ReadChargeDet();
+        if (charging != tca9535IsCharging) {
+            tca9535IsCharging = charging;
+            LOG_INFO("TCA9535: Charging %s", charging ? "DETECTED" : "STOPPED");
+        }
+    }
+#endif
+
+    // ===================================================================
     // 矩阵键盘扫描（仅 RUNNING 状态）
     // ===================================================================
 #ifdef TCA9535_INT_PIN
@@ -231,9 +246,17 @@ int32_t TCA9535ButtonThread::runOnce()
     // 遍历所有键位，派发按下事件
     for (uint8_t i = 0; i < TCA9535_KEY_COUNT; i++) {
         if (pressed & (1u << i)) {
+            // 按键按下 → 点亮键盘背光（重置 5 秒计时）
+            if (!_backlightOn) {
+                _backlightOn = true;
+                _backlightLastMs = millis();
+                tca9535Backlight(true);
+            } else {
+                _backlightLastMs = millis(); // 已亮则刷新计时
+            }
             input_broker_event evt = tca9535KeyMap[i];
             if (evt != INPUT_BROKER_NONE) {
-                dispatchEvent(evt);
+                dispatchEvent(evt, tca9535KeyCharMap[i]);
             }
         }
     }
@@ -308,12 +331,12 @@ bool TCA9535ButtonThread::readReg(uint8_t reg, uint8_t &val)
     return true;
 }
 
-void TCA9535ButtonThread::dispatchEvent(input_broker_event evt)
+void TCA9535ButtonThread::dispatchEvent(input_broker_event evt, unsigned char kbchar)
 {
     InputEvent e = {};
     e.source     = _originName;
     e.inputEvent = evt;
-    e.kbchar     = 0;
+    e.kbchar     = kbchar;
     e.touchX     = 0;
     e.touchY     = 0;
     this->notifyObservers(&e);

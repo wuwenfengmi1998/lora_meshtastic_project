@@ -7,10 +7,12 @@
  *   - A0=0, A1=0, A2=0 → I²C 地址 0x20
  *   - P0.0~P0.3：行输出（ROW0~ROW3），逐行拉低扫描
  *   - P0.4~P0.7：列输入（COL0~COL3），读取按键状态
- *   - P1.2：电源使能（POWER_EN），高电平有效，驱动 MOS 管维持供电
+ *   - P1.1：充电检测输入（CHARGE_DET），高电平=正在充电
+ *   - P1.2：电源使能（POWER_EN），高电平有效，驱动 MOS 管维持供电（输出）
  *   - P1.3：电源开机按钮（POWER_BOOT），输入，低电平有效（按键按下接地）
  *   - P1.4：LoRa RST 输出（通过 I²C 控制 RadioLib 复位序列）
  *   - P1.5：状态指示灯，低电平点亮
+ *   P1 Config 寄存器 = 0x0A（P1.1、P1.3 为输入，其余为输出）
  *
  * 电源管理逻辑：
  *   开机：物理按键按下 → MOS 导通 → ESP32/TCA9535 得电
@@ -81,12 +83,31 @@
 #define TCA9535_REG_CONFIG_P1  0x07
 
 // P1 口引脚位掩码
+#define TCA9535_BIT_P10  (1u << 0) // 键盘背光输出（高电平点亮）
 #define TCA9535_BIT_P12  (1u << 2) // POWER_EN 输出
 #define TCA9535_BIT_P13  (1u << 3) // POWER_BOOT 输入
 #define TCA9535_BIT_P14  (1u << 4) // LoRa RST 输出
 #define TCA9535_BIT_P15  (1u << 5) // 状态指示灯输出（低电平点亮）
 #define TCA9535_BIT_P16  (1u << 6) // GPS RST 输出
 #define TCA9535_BIT_P17  (1u << 7) // GPS EN 输出（高电平有效）
+
+#ifdef TCA9535_CHARGE_DET_PIN
+/**
+ * 通过 I²C 读取 TCA9535 CHARGE_DET（P1.1）输入状态。
+ * @return true=正在充电（高电平），false=未充电（低电平）
+ */
+static inline bool tca9535ReadChargeDet()
+{
+    Wire.beginTransmission(TCA9535_I2C_ADDR);
+    Wire.write(TCA9535_REG_INPUT_P1);
+    if (Wire.endTransmission(false) != 0)
+        return false;
+    if (Wire.requestFrom((uint8_t)TCA9535_I2C_ADDR, (uint8_t)1) != 1)
+        return false;
+    uint8_t p1In = Wire.read();
+    return !!(p1In & TCA9535_CHARGE_DET_PIN);
+}
+#endif
 
 /**
  * 通过 I²C 控制 TCA9535 P1.2 上的电源使能（POWER_EN）。
@@ -192,6 +213,33 @@ static inline bool tca9535StatusLed(bool on)
 }
 
 /**
+ * 通过 I²C 控制 TCA9535 P1.0 上的键盘背光。
+ * 高电平点亮，低电平熄灭。
+ * @param on true=点亮（高电平），false=熄灭（低电平）
+ */
+static inline bool tca9535Backlight(bool on)
+{
+    Wire.beginTransmission(TCA9535_I2C_ADDR);
+    Wire.write(TCA9535_REG_OUTPUT_P1);
+    if (Wire.endTransmission(false) != 0)
+        return false;
+    if (Wire.requestFrom((uint8_t)TCA9535_I2C_ADDR, (uint8_t)1) != 1)
+        return false;
+    uint8_t p1Out = Wire.read();
+
+    // 修改 P1.0 位：高电平点亮
+    if (on)
+        p1Out |= TCA9535_BIT_P10;  // 拉高 = 点亮
+    else
+        p1Out &= ~TCA9535_BIT_P10; // 拉低 = 熄灭
+
+    Wire.beginTransmission(TCA9535_I2C_ADDR);
+    Wire.write(TCA9535_REG_OUTPUT_P1);
+    Wire.write(p1Out);
+    return (Wire.endTransmission() == 0);
+}
+
+/**
  * 通过 I²C 控制 TCA9535 P1.6 上的 GPS RST。
  * @param high true=释放复位（高电平），false=触发复位（低电平）
  */
@@ -288,6 +336,13 @@ class TCA9535ButtonThread : public Observable<const InputEvent *>, public concur
     bool _statusLedOn = false;
     uint32_t _statusLedToggleMs = 0;
 
+    // 充电检测轮询间隔
+    uint32_t _chargeDetLastMs = 0;
+
+    // P1.0 键盘背光控制（按键时点亮，5 秒无操作熄灭）
+    bool _backlightOn = false;
+    uint32_t _backlightLastMs = 0;
+
     // 写寄存器
     bool writeReg(uint8_t reg, uint8_t val);
 
@@ -298,10 +353,14 @@ class TCA9535ButtonThread : public Observable<const InputEvent *>, public concur
     bool scanMatrix(uint16_t &keys);
 
     // 派发事件到 InputBroker
-    void dispatchEvent(input_broker_event evt);
+    void dispatchEvent(input_broker_event evt, unsigned char kbchar = 0);
 };
 
 // 仅在 HAS_TCA9535_BUTTON 启用时导出全局指针声明
 #ifdef HAS_TCA9535_BUTTON
 extern TCA9535ButtonThread *tca9535ButtonThread;
+
+// 全局充电检测状态，由 TCA9535ButtonThread::runOnce() 轮询更新
+// 可被 Power 等外部模块读取（需 #ifdef TCA9535_CHARGE_DET_PIN 守卫）
+extern volatile bool tca9535IsCharging;
 #endif
