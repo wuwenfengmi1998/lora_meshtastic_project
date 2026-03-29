@@ -554,7 +554,7 @@ std::vector<int> calculateLineHeights(const std::vector<std::string> &lines, con
             uint16_t cp = cfont12_utf8(_line.c_str() + ci, &utf8len);
             if (cp >= 0x80 && cfont12_find(cp)) {
                 hasCJK = true;
-                lineHeight = std::max(lineHeight, CFONT_H);
+                lineHeight = std::max(lineHeight, CFONT_H + 2); // +2 for cfont12_draw y offset
                 break;
             }
             ci += utf8len;

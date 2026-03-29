@@ -21109,6 +21109,7 @@ inline const CFontGlyph* cfont12_find(uint16_t cp) {
 inline int cfont12_draw(OLEDDisplay*d,int x,int y,uint16_t cp){
   const CFontGlyph*g=cfont12_find(cp);
   if(!g)return 0;
+  y+=2;
   for(int r=0;r<CFONT_H;r++)for(int c=0;c<CFONT_W;c++){
     uint8_t b=pgm_read_byte(&g->bmp[r*CFONT_BPR+(c>>3)]);
     if(b&(0x80>>(c&7)))d->setPixel(x+c,y+r);
