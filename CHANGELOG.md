@@ -78,6 +78,14 @@
 #### 充电检测轮询间隔缩短
 - TCA9535 CHARGE_DET 轮询间隔从 2000ms 缩短到 500ms，加快充电状态响应
 
+#### T9 九宫格输入法（esp32c3_moonshine_travelers）
+- 三种输入模式：abc（小写） / ABC（大写） / 123（数字），按 `#` 循环切换
+- 数字键 2-9：大小写模式下 multi-tap 选字母（800ms 超时自动确认），数字模式下直接输出数字
+- 数字键 0 = 空格（大小写模式） / 数字 0（数字模式）
+- 数字键 1 = 标点循环 `. , ! ?`（大小写模式） / 数字 1（数字模式）
+- `*` 号键 = 退格（backspace）
+- 屏幕右下角显示当前输入模式标签，光标位置实时预览 multi-tap 字符
+
 #### 按键映射更新（key3/key7/key11/key15 = 方向键）
 - 矩阵按键映射从 `key1=UP, key2=DOWN, key3=LEFT, key4=RIGHT` 改为 `key3=UP, key7=DOWN, key11=LEFT, key15=RIGHT`
 - 方向键全部位于 COL3 列（key3=ROW0·COL3, key7=ROW1·COL3, key11=ROW2·COL3, key15=ROW3·COL3）
@@ -95,6 +103,18 @@
 - **LTO 链接错误**：编译时 `-flto` 导致 `undefined reference to TCA9535ButtonThread::*`
   - 原因：.h/.cpp 中的 `#if defined(HAS_TCA9535_BUTTON)` 守卫导致部分编译单元中符号被丢弃
   - 修复：去掉 .h/.cpp 中的条件守卫，类定义和实现始终编译；main.cpp 中的实例化仍由 `#ifdef` 控制
+- **T9 commitMultiTap 无限递归崩溃**：`commitMultiTap()` → `runOnce()` → 检测超时又调 `commitMultiTap()` → 栈溢出
+  - 修复：添加 `committingMultiTap` 重入保护标志
+- **T9 payload 残留导致非预期行为**：`runOnce()` 调用后 payload 未清零，被下次调度复用
+  - 修复：所有手动 `runOnce()` 调用后立即 `payload = 0`，末尾加最后防线清零
+- **T9 REGENERATE_FRAMESET 重复触发导致跳回主页面**：同一调用链中多次 `notifyObservers(REGENERATE_FRAMESET)` 导致 `requestFocus()` 被消费后 `focusedModule=255` → 跳第一帧
+  - 修复：`commitMultiTap` 移除多余通知，`showMultiTapPreview`/`#`键改用 `REDRAW_ONLY`，超时 commit 后跳过后续通知，LEFT/RIGHT 补加 `requestFocus()`
+- **T9 大小写模式下出现数字**：旧 t9Map index 0 存放数字，大小写模式下仍会显示
+  - 修复：重做 `t9LetterMap`，去掉数字项，DIGIT 模式下直接输出数字不走 multi-tap
+- **T9 光标不跟随预览字符跳转**：preview 字符插入 `displayText` 后 `displayCursor` 未 +1
+  - 修复：有 pending multi-tap 时 `displayCursor = cursor + 1`
+- **T9 按 0 无法输出空格**：`multiTapKey` 用 `0` 表示"无 pending"，与按键 0 的值冲突
+  - 修复：无效标记从 `0` 改为 `0xFF`
 
 ---
 

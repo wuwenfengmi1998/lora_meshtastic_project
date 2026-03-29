@@ -192,6 +192,16 @@ class CannedMessageModule : public SinglePortModule, public Observable<const UIF
     int charSet = 0; // 0=ABC, 1=123
 #endif
 
+    // === Multi-tap T9 input method (for TCA9535 numpad) ===
+    enum class InputMode : uint8_t { DIGIT, LOWER, UPPER };
+    InputMode inputMode = InputMode::LOWER; // 默认小写字母模式
+    uint8_t  multiTapKey = 0xFF;            // 上一次按的数字键 ('0'-'9'), 0xFF = no pending key
+    uint8_t  multiTapIndex = 0;             // 当前循环索引
+    uint32_t multiTapLastMs = 0;            // 上一次按键时间戳
+    bool     committingMultiTap = false;     // 重入保护（commitMultiTap → runOnce → commitMultiTap）
+    static constexpr uint32_t MULTI_TAP_TIMEOUT_MS = 800; // multi-tap 超时（ms）
+    static const char *const t9LetterMap[][5]; // T9 字母模式映射表（UPPER/LOWER 模式用此表）
+
     bool isUpEvent(const InputEvent *event);
     bool isDownEvent(const InputEvent *event);
     bool isSelectEvent(const InputEvent *event);
@@ -199,6 +209,8 @@ class CannedMessageModule : public SinglePortModule, public Observable<const UIF
     int handleDestinationSelectionInput(const InputEvent *event, bool isUp, bool isDown, bool isSelect);
     bool handleMessageSelectorInput(const InputEvent *event, bool isUp, bool isDown, bool isSelect);
     bool handleFreeTextInput(const InputEvent *event);
+    bool commitMultiTap(); // Returns true if a character was actually committed
+    void showMultiTapPreview();
 
 #if defined(USE_VIRTUAL_KEYBOARD)
     Letter keyboard[2][4][10] = {{{{"Q", 20, 0, 0, 0, 0},

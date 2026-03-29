@@ -13,6 +13,25 @@
 #include "detect/ScanI2C.h"
 #include "graphics/Screen.h"
 #include "graphics/SharedUIDisplay.h"
+
+// === T9 multi-tap letter mapping (standard phone keypad) ===
+// Each row maps a digit key to the characters available in LETTER mode (UPPER/LOWER).
+// Index 0 = first letter, 1 = second, etc. Terminated by nullptr.
+// In DIGIT mode, the key simply produces its digit value directly.
+// Special keys: '0' = space in letter mode, digit in digit mode
+//               '1' = punctuation in letter mode, digit in digit mode
+const char *const CannedMessageModule::t9LetterMap[][5] = {
+    /* '0' */ {" ",    nullptr},                  // space only
+    /* '1' */ {".",    ",",   "!",   "?",   nullptr}, // punctuation
+    /* '2' */ {"a",    "b",   "c",   nullptr},
+    /* '3' */ {"d",    "e",   "f",   nullptr},
+    /* '4' */ {"g",    "h",   "i",   nullptr},
+    /* '5' */ {"j",    "k",   "l",   nullptr},
+    /* '6' */ {"m",    "n",   "o",   nullptr},
+    /* '7' */ {"p",    "q",   "r",   "s"},
+    /* '8' */ {"t",    "u",   "v",   nullptr},
+    /* '9' */ {"w",    "x",   "y",   "z"},
+};
 #include "graphics/draw/NotificationRenderer.h"
 #include "graphics/emotes.h"
 #include "graphics/images.h"
@@ -841,6 +860,7 @@ bool CannedMessageModule::handleFreeTextInput(const InputEvent *event)
     // Confirm select (Enter)
     bool isSelect = isSelectEvent(event);
     if (isSelect) {
+        commitMultiTap();
         LOG_DEBUG("[SELECT] handleFreeTextInput: runState=%d, dest=%u, channel=%d, freetext='%s'", (int)runState, dest, channel,
                   freetext.c_str());
         if (dest == 0)
@@ -862,12 +882,15 @@ bool CannedMessageModule::handleFreeTextInput(const InputEvent *event)
         payload = 0x08;
         lastTouchMillis = millis();
         runOnce();
+        payload = 0;
         return true;
     }
 
     // LEFT/RIGHT in FREETEXT: go back to canned message list (ACTIVE), preserving input
     if (event->inputEvent == INPUT_BROKER_LEFT || event->inputEvent == INPUT_BROKER_RIGHT) {
+        commitMultiTap();
         runState = CANNED_MESSAGE_RUN_STATE_ACTIVE;
+        requestFocus(); // commitMultiTap's runOnce() consumed the previous focus request
         UIFrameEvent e;
         e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
         notifyObservers(&e);
@@ -878,6 +901,7 @@ bool CannedMessageModule::handleFreeTextInput(const InputEvent *event)
     // Cancel (dismiss freetext screen)
     if (event->inputEvent == INPUT_BROKER_CANCEL || event->inputEvent == INPUT_BROKER_ALT_LONG ||
         (event->inputEvent == INPUT_BROKER_BACK && this->freetext.length() == 0)) {
+        multiTapKey = 0xFF; // discard pending multi-tap
         runState = CANNED_MESSAGE_RUN_STATE_INACTIVE;
         freetext = "";
         cursor = 0;
@@ -902,14 +926,70 @@ bool CannedMessageModule::handleFreeTextInput(const InputEvent *event)
         payload = 0x08;
         lastTouchMillis = millis();
         runOnce();
+        payload = 0;
         return true;
     }
 
-    // Printable ASCII (add char to draft)
+    // '#' key: cycle input mode DIGIT -> LOWER -> UPPER -> DIGIT ...
+    if (event->kbchar == '#') {
+        // First, commit any pending multi-tap character
+        commitMultiTap();
+        int m = static_cast<int>(inputMode);
+        inputMode = static_cast<InputMode>((m + 1) % 3);
+        LOG_DEBUG("[T9] Input mode: %d", (int)inputMode);
+        lastTouchMillis = millis();
+        // Use REDRAW_ONLY: commitMultiTap() already triggered REGENERATE_FRAMESET,
+        // another one would lose focus → jump to main screen
+        UIFrameEvent e;
+        e.action = UIFrameEvent::Action::REDRAW_ONLY;
+        notifyObservers(&e);
+        screen->forceDisplay();
+        return true;
+    }
+
+    // Multi-tap T9 for digit keys '0'-'9' from TCA9535 numpad
+    if (event->kbchar >= '0' && event->kbchar <= '9') {
+        uint32_t now = millis();
+        uint8_t key = event->kbchar - '0'; // 0-9
+
+        // In DIGIT mode, digit keys produce their digit directly — no multi-tap cycling
+        if (inputMode == InputMode::DIGIT) {
+            commitMultiTap(); // commit any pending character first
+            payload = '0' + key;
+            lastTouchMillis = millis();
+            runOnce();
+            payload = 0;
+            return true;
+        }
+
+        // In UPPER/LOWER mode: use letter mapping with multi-tap cycling
+        // Check if multi-tap timed out or different key pressed
+        if (multiTapKey != key || (now - multiTapLastMs >= MULTI_TAP_TIMEOUT_MS)) {
+            // Commit previous pending char, start new multi-tap sequence
+            commitMultiTap();
+            multiTapKey = key;
+            multiTapIndex = 0; // index 0 = first letter in t9LetterMap
+        } else {
+            // Same key, within timeout → advance index
+            int count = 0;
+            while (t9LetterMap[key][count] != nullptr) count++;
+            multiTapIndex = (multiTapIndex + 1) % count;
+        }
+        multiTapLastMs = now;
+
+        // Show preview character (will be committed on timeout or next key)
+        showMultiTapPreview();
+        lastTouchMillis = millis();
+        return true;
+    }
+
+    // Any other printable ASCII from external keyboards: commit multi-tap first, then insert
     if (event->kbchar >= 32 && event->kbchar <= 126) {
+        commitMultiTap();
         payload = event->kbchar;
         lastTouchMillis = millis();
         runOnce();
+        payload = 0;
         return true;
     }
 
@@ -1190,6 +1270,18 @@ int32_t CannedMessageModule::runOnce()
             LOG_DEBUG("MOVE DOWN (%d):%s", this->currentMessageIndex, this->getCurrentMessage());
         }
     } else if (this->runState == CANNED_MESSAGE_RUN_STATE_FREETEXT || this->runState == CANNED_MESSAGE_RUN_STATE_ACTIVE) {
+        // Multi-tap timeout: auto-commit pending character (with reentrancy guard)
+        if (this->runState == CANNED_MESSAGE_RUN_STATE_FREETEXT && this->multiTapKey != 0xFF &&
+            !this->committingMultiTap &&
+            (millis() - this->multiTapLastMs >= MULTI_TAP_TIMEOUT_MS)) {
+            if (commitMultiTap()) {
+                // commitMultiTap() already called runOnce() which did notifyObservers(REGENERATE_FRAMESET).
+                // Do NOT call it again here — a second REGENERATE_FRAMESET would cause
+                // setFrames(FOCUS_MODULE) to run again with no focus request → focusedModule=255 → main screen.
+                return INACTIVATE_AFTER_MS;
+            }
+        }
+
         switch (this->payload) {
         case INPUT_BROKER_LEFT:
             if (this->runState == CANNED_MESSAGE_RUN_STATE_FREETEXT && this->cursor > 0) {
@@ -1247,6 +1339,7 @@ int32_t CannedMessageModule::runOnce()
             }
         }
         this->lastTouchMillis = millis();
+        this->payload = 0; // Clear payload after processing to prevent re-processing
         this->notifyObservers(&e);
         return INACTIVATE_AFTER_MS;
     }
@@ -1877,7 +1970,20 @@ void CannedMessageModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *st
         display->setColor(WHITE);
         {
             int inputY = 0 + y + FONT_HEIGHT_SMALL;
-            String msgWithCursor = this->drawWithCursor(this->freetext, this->cursor);
+
+            // If there's a pending multi-tap character, show it at cursor as preview
+            String displayText = this->freetext;
+            unsigned int displayCursor = this->cursor;
+            if (this->multiTapKey != 0xFF && this->multiTapIndex >= 0) {
+                const char *ch = t9LetterMap[this->multiTapKey][this->multiTapIndex];
+                if (ch) {
+                    char c = (this->inputMode == InputMode::UPPER) ? toupper(*ch) : *ch;
+                    displayText = displayText.substring(0, this->cursor) + String(c) + displayText.substring(this->cursor);
+                    displayCursor = this->cursor + 1; // cursor should be AFTER the preview char
+                }
+            }
+
+            String msgWithCursor = this->drawWithCursor(displayText, displayCursor);
 
             // Tokenize input into (isEmote, token) pairs
             std::vector<std::pair<bool, String>> tokens;
@@ -2013,6 +2119,21 @@ void CannedMessageModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *st
                     }
                 }
                 yLine += rowHeight;
+            }
+
+            // --- Input mode indicator (right-aligned, bottom of screen) ---
+            {
+                const char *modeLabel;
+                switch (inputMode) {
+                case InputMode::DIGIT: modeLabel = "123"; break;
+                case InputMode::LOWER: modeLabel = "abc"; break;
+                case InputMode::UPPER: modeLabel = "ABC"; break;
+                default:              modeLabel = "?";   break;
+                }
+                display->setTextAlignment(TEXT_ALIGN_RIGHT);
+                int modeY = y + display->getHeight() - FONT_HEIGHT_SMALL;
+                display->drawString(x + display->getWidth(), modeY, modeLabel);
+                display->setTextAlignment(TEXT_ALIGN_LEFT); // restore default
             }
         }
 #endif
@@ -2325,6 +2446,52 @@ String CannedMessageModule::drawWithCursor(String text, int cursor)
 {
     String result = text.substring(0, cursor) + "_" + text.substring(cursor);
     return result;
+}
+
+// === T9 Multi-tap helper methods ===
+
+bool CannedMessageModule::commitMultiTap()
+{
+    if (multiTapKey == 0xFF)
+        return false;
+
+    const char *ch = t9LetterMap[multiTapKey][multiTapIndex];
+    if (!ch)
+        return false;
+
+    // In UPPER/LOWER mode, index 0+ are letters from t9LetterMap; apply case
+    char c = (inputMode == InputMode::UPPER) ? toupper(*ch) : *ch;
+
+    payload = c;
+    committingMultiTap = true;  // Guard against reentrant call from runOnce
+    runOnce();
+    // runOnce() already triggers notifyObservers(REGENERATE_FRAMESET) + screen refresh,
+    // so we must NOT call it again here. A second REGENERATE_FRAMESET would cause
+    // Screen::setFrames(FOCUS_MODULE) to be called again, but _requestingFocus was
+    // already consumed by the first call → focusedModule=255 → jumps to main screen.
+    payload = 0;  // Clear payload to prevent re-processing by next scheduled runOnce
+    committingMultiTap = false;
+
+    multiTapKey = 0xFF;
+    multiTapIndex = 0;
+    multiTapLastMs = 0;
+
+    return true;
+}
+
+void CannedMessageModule::showMultiTapPreview()
+{
+    if (multiTapKey == 0xFF)
+        return;
+
+    // Use REDRAW_ONLY instead of REGENERATE_FRAMESET. REGENERATE_FRAMESET triggers
+    // Screen::setFrames(FOCUS_MODULE) which calls isRequestingFocus() — but the focus
+    // request was already consumed by a previous call → focusedModule=255 → jumps to
+    // main screen. REDRAW_ONLY just forces a redraw of the current frame.
+    UIFrameEvent e;
+    e.action = UIFrameEvent::Action::REDRAW_ONLY;
+    notifyObservers(&e);
+    screen->forceDisplay();
 }
 
 #endif
