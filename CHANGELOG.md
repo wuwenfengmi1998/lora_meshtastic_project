@@ -36,8 +36,8 @@
   - `tca9535PowerEn(bool on)` — read-modify-write P1.2，static inline
 - P1.3 = POWER_BOOT 输入，低电平有效（按键按下接地）
   - `tca9535ReadPowerBoot()` — 读取 P1.3 状态，static inline
-- 开机流程：物理按键 → MOS 导通 → ESP32 得电 → init() 检测 P1.3 持续按住 2 秒 → POWER_EN 拉高维持供电
-  - 未按满 2 秒松开 → 不拉高 POWER_EN → MOS 断开 → 自动断电
+- 开机流程：物理按键 → MOS 导通 → ESP32 得电 → main.cpp 立即锁 POWER_EN → 等待 P1.3 持续按住 2 秒确认 → 启动系统
+  - 3 秒内未按满 2 秒 → POWER_EN 拉低 → MOS 断开 → 自动断电
 - 关机流程：运行中 P1.3 持续按住 2 秒 → 清空屏幕 → POWER_EN 拉低 → 用户松手后 MOS 断开断电
 - 电源状态机：`BOOT_PENDING` → `RUNNING` → `SHUTDOWN_PENDING`
 - P1 口配置：`0x8B`（P1.2=输出, P1.3=输入, P1.4=输出, P1.5=输出, P1.6=输出, P1.7=输出）
@@ -62,6 +62,21 @@
 - `#ifdef TCA9535_LORA_RST_VIRTUAL_PIN` 条件编译使用 `TCA9535GpioHal` 作为 RadioLib HAL
 
 ### Changed
+
+#### 开机流程改为 early-lock + 确认窗口
+- `main.cpp`：`Wire.begin()` 后立即 `tca9535PowerEn(true)` 锁住供电，防止初始化途中掉电
+- 新增开机确认窗口：等待 P1.3 持续按住 2 秒确认开机，最多等 3 秒，超时则断电关机
+- `TCA9535ButtonThread::init()` 不再负责开机确认，只设置状态机为 RUNNING
+
+#### 快捷回复 ↔ 九宫格输入导航（esp32c3_moonshine_travelers）
+- **INACTIVE**：UP/DOWN 进入快捷回复列表（恢复原始行为）
+- **ACTIVE**（快捷回复列表）：LEFT/RIGHT 进入九宫格文本输入（FREETEXT），不再映射为上下滚动
+- **FREETEXT**（九宫格输入）：LEFT/RIGHT 返回快捷回复列表，保留已输入文字
+- `*` 号键映射为退格键（backspace）
+- `isUpEvent()` / `isDownEvent()` 移除 ACTIVE 状态对 LEFT/RIGHT 的映射
+
+#### 充电检测轮询间隔缩短
+- TCA9535 CHARGE_DET 轮询间隔从 2000ms 缩短到 500ms，加快充电状态响应
 
 #### 按键映射更新（key3/key7/key11/key15 = 方向键）
 - 矩阵按键映射从 `key1=UP, key2=DOWN, key3=LEFT, key4=RIGHT` 改为 `key3=UP, key7=DOWN, key11=LEFT, key15=RIGHT`

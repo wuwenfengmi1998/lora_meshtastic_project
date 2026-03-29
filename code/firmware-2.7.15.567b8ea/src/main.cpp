@@ -586,10 +586,43 @@ void setup()
     Wire.begin(I2C_SDA, I2C_SCL);
 #ifdef HAS_TCA9535_BUTTON
     // TCA9535 POWER_EN 必须在 I²C 初始化完成后立即拉高，否则用户松开按键后
-    // MOS 断电，系统在 setup() 中途就会掉电。此处无条件锁住供电，
-    // 后续 tca9535ButtonThread::init() 只负责键盘和状态机初始化。
+    // MOS 断电，系统在 setup() 中途就会掉电。
     tca9535PowerEn(true);
     LOG_INFO("TCA9535: POWER_EN latched HIGH (early boot)");
+
+    // 开机确认窗口：检测 P1.3 是否持续按住 2 秒，防止意外通电卡死
+    // 最多等待 3 秒，3 秒内未连续按满 2 秒则断电关机
+    {
+        bool bootConfirmed = false;
+        uint32_t pressStart = 0;
+        uint32_t deadline = millis() + 3000;
+        LOG_INFO("TCA9535: Waiting for 2s button hold to confirm boot (timeout 3s)...");
+
+        while (millis() < deadline) {
+            bool pressed = tca9535ReadPowerBoot();
+            if (pressed && pressStart == 0) {
+                pressStart = millis();
+            } else if (pressed && pressStart != 0) {
+                if (millis() - pressStart >= 2000) {
+                    bootConfirmed = true;
+                    LOG_INFO("TCA9535: Boot confirmed (button held 2s)");
+                    break;
+                }
+            } else if (!pressed && pressStart != 0) {
+                // 松手重置计时
+                pressStart = 0;
+            }
+            delay(50); // 50ms 轮询
+        }
+
+        if (!bootConfirmed) {
+            LOG_WARN("TCA9535: Boot not confirmed, shutting down");
+            tca9535PowerEn(false);
+            // 等待 MOS 断开
+            delay(500);
+            doDeepSleep(0, false, false);
+        }
+    }
 #endif
 #elif defined(ARCH_PORTDUINO)
     if (portduino_config.i2cdev != "") {

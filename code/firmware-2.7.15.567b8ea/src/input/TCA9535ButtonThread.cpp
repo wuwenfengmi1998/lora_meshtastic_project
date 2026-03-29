@@ -116,13 +116,11 @@ bool TCA9535ButtonThread::init()
     tca9535GpsEn(true);
 
     // ===================================================================
-    // 第二步：POWER_EN 已由 main.cpp 在 Wire.begin() 后立即拉高（早期锁定）
-    //   此处只需确认状态机进入 RUNNING，不再需要等待 P1.3 按住 2 秒。
-    //   原因：系统从 Wire.begin() 到 tca9535ButtonThread::init() 之间需要
-    //   数秒的初始化时间（LoRa/WiFi/BLE/GPS 等），用户早已松开按键，
-    //   无法在此处等待。开机供电维持已在 main.cpp 最早期完成。
+    // 第三步：POWER_EN 已由 main.cpp 在 Wire.begin() 后立即拉高，
+    //   并等待 P1.3 持续按住 2 秒确认开机（超时 3 秒则断电关机）。
+    //   此处只需确认状态机进入 RUNNING。
     // ===================================================================
-    LOG_INFO("TCA9535: POWER_EN already latched in early boot, skipping boot-hold wait");
+    LOG_INFO("TCA9535: Boot already confirmed in early boot, state=RUNNING");
     _powerState = TCA9535PowerState::RUNNING;
 
     // ===================================================================
@@ -211,7 +209,7 @@ int32_t TCA9535ButtonThread::runOnce()
     // 充电检测：轮询 P1.1 (CHARGE_DET)，高电平=正在充电
     // ===================================================================
 #ifdef TCA9535_CHARGE_DET_PIN
-    if (millis() - _chargeDetLastMs >= 2000) {
+    if (millis() - _chargeDetLastMs >= 500) {
         _chargeDetLastMs = millis();
         bool charging = tca9535ReadChargeDet();
         if (charging != tca9535IsCharging) {

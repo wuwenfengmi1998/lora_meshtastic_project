@@ -16,8 +16,8 @@
  *
  * 电源管理逻辑：
  *   开机：物理按键按下 → MOS 导通 → ESP32/TCA9535 得电
- *         init() 读 P1.3，持续按住 2 秒 → tca9535PowerEn(true) 维持供电
- *         未按满 2 秒松开 → 不拉高 POWER_EN → MOS 断开 → 断电
+ *         main.cpp Wire.begin() 后立即拉高 POWER_EN 锁住供电，
+ *         然后等待 P1.3 持续按住 2 秒确认开机（超时 3 秒则断电关机）
  *   关机：运行中 P1.3 持续低电平 2 秒 → tca9535PowerEn(false) → 断电
  *
  * 寄存器布局：

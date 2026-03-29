@@ -368,6 +368,18 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
     case CANNED_MESSAGE_RUN_STATE_SENDING_ACTIVE:
         return 1;
 
+    // Canned message list: LEFT/RIGHT enters free text input
+    case CANNED_MESSAGE_RUN_STATE_ACTIVE:
+        if (event->inputEvent == INPUT_BROKER_LEFT || event->inputEvent == INPUT_BROKER_RIGHT) {
+            runState = CANNED_MESSAGE_RUN_STATE_FREETEXT;
+            requestFocus();
+            UIFrameEvent e;
+            e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
+            notifyObservers(&e);
+            return 1;
+        }
+        break;
+
     // If sending, block all input except global/system (handled above)
     case CANNED_MESSAGE_RUN_STATE_EMOTE_PICKER:
         return handleEmotePickerInput(event);
@@ -380,7 +392,7 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
         if (event->inputEvent == INPUT_BROKER_LEFT || event->inputEvent == INPUT_BROKER_RIGHT) {
             break;
         }
-        // Handle UP/DOWN: activate canned message list!
+        // Handle UP/DOWN: activate canned message list
         if (event->inputEvent == INPUT_BROKER_UP || event->inputEvent == INPUT_BROKER_DOWN ||
             event->inputEvent == INPUT_BROKER_ALT_LONG) {
             LaunchWithDestination(NODENUM_BROADCAST);
@@ -415,14 +427,14 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
 bool CannedMessageModule::isUpEvent(const InputEvent *event)
 {
     return event->inputEvent == INPUT_BROKER_UP ||
-           ((runState == CANNED_MESSAGE_RUN_STATE_ACTIVE || runState == CANNED_MESSAGE_RUN_STATE_EMOTE_PICKER ||
+           ((runState == CANNED_MESSAGE_RUN_STATE_EMOTE_PICKER ||
              runState == CANNED_MESSAGE_RUN_STATE_DESTINATION_SELECTION) &&
             (event->inputEvent == INPUT_BROKER_LEFT || event->inputEvent == INPUT_BROKER_ALT_PRESS));
 }
 bool CannedMessageModule::isDownEvent(const InputEvent *event)
 {
     return event->inputEvent == INPUT_BROKER_DOWN ||
-           ((runState == CANNED_MESSAGE_RUN_STATE_ACTIVE || runState == CANNED_MESSAGE_RUN_STATE_EMOTE_PICKER ||
+           ((runState == CANNED_MESSAGE_RUN_STATE_EMOTE_PICKER ||
              runState == CANNED_MESSAGE_RUN_STATE_DESTINATION_SELECTION) &&
             (event->inputEvent == INPUT_BROKER_RIGHT || event->inputEvent == INPUT_BROKER_USER_PRESS));
 }
@@ -853,18 +865,13 @@ bool CannedMessageModule::handleFreeTextInput(const InputEvent *event)
         return true;
     }
 
-    // Move cursor left
-    if (event->inputEvent == INPUT_BROKER_LEFT) {
-        payload = INPUT_BROKER_LEFT;
-        lastTouchMillis = millis();
-        runOnce();
-        return true;
-    }
-    // Move cursor right
-    if (event->inputEvent == INPUT_BROKER_RIGHT) {
-        payload = INPUT_BROKER_RIGHT;
-        lastTouchMillis = millis();
-        runOnce();
+    // LEFT/RIGHT in FREETEXT: go back to canned message list (ACTIVE), preserving input
+    if (event->inputEvent == INPUT_BROKER_LEFT || event->inputEvent == INPUT_BROKER_RIGHT) {
+        runState = CANNED_MESSAGE_RUN_STATE_ACTIVE;
+        UIFrameEvent e;
+        e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
+        notifyObservers(&e);
+        screen->forceDisplay();
         return true;
     }
 
@@ -888,6 +895,14 @@ bool CannedMessageModule::handleFreeTextInput(const InputEvent *event)
     // Tab (switch destination)
     if (event->kbchar == INPUT_BROKER_MSG_TAB) {
         return handleTabSwitch(event); // Reuse tab logic
+    }
+
+    // '*' key from TCA9535 numpad acts as backspace
+    if (event->kbchar == '*') {
+        payload = 0x08;
+        lastTouchMillis = millis();
+        runOnce();
+        return true;
     }
 
     // Printable ASCII (add char to draft)
