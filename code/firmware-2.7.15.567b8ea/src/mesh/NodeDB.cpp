@@ -958,6 +958,20 @@ void NodeDB::installRoleDefaults(meshtastic_Config_DeviceConfig_Role role)
         moduleConfig.telemetry.environment_update_interval = MAX_INTERVAL;
         moduleConfig.telemetry.air_quality_interval = MAX_INTERVAL;
         moduleConfig.telemetry.health_update_interval = MAX_INTERVAL;
+    } else if (role == meshtastic_Config_DeviceConfig_Role_CLIENT ||
+               role == meshtastic_Config_DeviceConfig_Role_CLIENT_MUTE) {
+        // Restore default broadcast intervals when switching back from a restrictive role
+        // (e.g. CLIENT_HIDDEN sets node_info_broadcast_secs = MAX_INTERVAL; without this
+        //  reset the node would never send NodeInfo after being switched back to CLIENT).
+        config.device.node_info_broadcast_secs = default_node_info_broadcast_secs;
+        config.position.position_broadcast_smart_enabled = true;
+        config.position.position_broadcast_secs = default_broadcast_interval_secs;
+        moduleConfig.neighbor_info.update_interval = 0; // 0 → coalesces to default in Default.h
+        moduleConfig.telemetry.device_update_interval = MAX_INTERVAL; // coalesces to default
+        moduleConfig.telemetry.environment_update_interval = 0;
+        moduleConfig.telemetry.air_quality_interval = 0;
+        moduleConfig.telemetry.health_update_interval = 0;
+        config.device.rebroadcast_mode = meshtastic_Config_DeviceConfig_RebroadcastMode_ALL;
     }
 }
 

@@ -634,6 +634,10 @@ void AdminModule::handleSetConfig(const meshtastic_Config &c)
             nodeDB->installRoleDefaults(c.payload_variant.device.role);
             changes |= SEGMENT_NODEDATABASE | SEGMENT_DEVICESTATE; // Some role defaults affect owner
         }
+        // Always keep owner.role in sync with config.device.role so that outgoing NodeInfo
+        // broadcasts reflect the actual current role immediately (owner is loaded from devicestate
+        // at boot but never re-synced afterwards without this explicit assignment).
+        owner.role = config.device.role;
         if (config.device.node_info_broadcast_secs < min_node_info_broadcast_secs) {
             LOG_DEBUG("Tried to set node_info_broadcast_secs too low, setting to %d", min_node_info_broadcast_secs);
             config.device.node_info_broadcast_secs = min_node_info_broadcast_secs;

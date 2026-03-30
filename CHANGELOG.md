@@ -128,6 +128,10 @@
   - 修复：有 pending multi-tap 时 `displayCursor = cursor + 1`
 - **T9 按 0 无法输出空格**：`multiTapKey` 用 `0` 表示"无 pending"，与按键 0 的值冲突
   - 修复：无效标记从 `0` 改为 `0xFF`
+- **NodeInfo 不广播节点名字和公钥**：从 CLIENT_HIDDEN 切回 CLIENT/CLIENT_MUTE 后，`owner.role` 仍保持原值导致 NodeInfo 广播使用错误的 role
+  - 修复：在 `AdminModule::handleSetConfig()` 末尾显式同步 `owner.role = config.device.role`
+- **从 CLIENT_HIDDEN 切回 CLIENT 后 NodeInfo 永不广播**：`installRoleDefaults(CLIENT_HIDDEN)` 设置 `node_info_broadcast_secs = INT32_MAX`，但切回 CLIENT 时无对应恢复分支
+  - 修复：在 `NodeDB::installRoleDefaults()` 新增 CLIENT/CLIENT_MUTE 分支，恢复 `default_node_info_broadcast_secs` 和相关广播间隔
 
 ---
 
