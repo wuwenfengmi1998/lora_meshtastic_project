@@ -11,6 +11,9 @@
 #define HAS_SCREEN 1
 #define USE_SH1106
 
+// 启用 CannedMessageModule（快捷回复/自由文本输入）
+#define CANNED_MESSAGE_MODULE_ENABLE 1
+
 #define HAS_I2C 1
 #define WIRE_INTERFACES_COUNT (1)
 #define I2C_SDA 0

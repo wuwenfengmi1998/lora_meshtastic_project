@@ -138,6 +138,7 @@
   - 删除 `CannedMessageModule::handleInputEvent()` 中对 `INPUT_BROKER_UP` / `INPUT_BROKER_DOWN` 的特殊处理
   - 修复 `handleMessageSelectorInput()` 在 INACTIVE 状态下错误处理 UP/DOWN 的问题
   - 按 * 键（或其他可打印字符）直接进入 FREETEXT 模式
+  - 在 variant.h 中添加 `CANNED_MESSAGE_MODULE_ENABLE=1` 启用 CannedMessageModule
 
 ---
 
