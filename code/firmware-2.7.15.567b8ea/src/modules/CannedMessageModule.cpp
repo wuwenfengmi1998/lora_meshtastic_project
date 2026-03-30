@@ -601,6 +601,11 @@ int CannedMessageModule::handleDestinationSelectionInput(const InputEvent *event
 
 bool CannedMessageModule::handleMessageSelectorInput(const InputEvent *event, bool isUp, bool isDown, bool isSelect)
 {
+    // INACTIVE 状态下不处理 UP/DOWN（由 * 键触发自由文本输入）
+    if (runState == CANNED_MESSAGE_RUN_STATE_INACTIVE) {
+        return false;
+    }
+
     // Override isDown and isSelect ONLY for canned message list behavior
     if (runState == CANNED_MESSAGE_RUN_STATE_ACTIVE) {
         if (event->inputEvent == INPUT_BROKER_USER_PRESS) {
