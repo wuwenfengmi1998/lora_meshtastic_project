@@ -394,6 +394,8 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
     case CANNED_MESSAGE_RUN_STATE_ACTIVE:
         if (event->inputEvent == INPUT_BROKER_LEFT || event->inputEvent == INPUT_BROKER_RIGHT) {
             runState = CANNED_MESSAGE_RUN_STATE_FREETEXT;
+            textScrollOffset = 0;  // 重置滚动偏移
+            cursor = 0;
             requestFocus();
             UIFrameEvent e;
             e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
@@ -420,6 +422,8 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
         if (event->kbchar >= 32 && event->kbchar <= 126) {
             LOG_DEBUG("CannedMessage: Entering FREETEXT, kbchar=%d", event->kbchar);
             runState = CANNED_MESSAGE_RUN_STATE_FREETEXT;
+            textScrollOffset = 0;  // 重置滚动偏移
+            cursor = 0;
             requestFocus();
             UIFrameEvent e;
             e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
@@ -935,6 +939,28 @@ bool CannedMessageModule::handleFreeTextInput(const InputEvent *event)
         return true;
     }
 
+    // UP/DOWN keys: move cursor in FREETEXT mode
+    if (event->inputEvent == INPUT_BROKER_UP) {
+        if (cursor > 0) {
+            cursor--;
+            // 确保光标在可见区域内，自动滚动
+            if (cursor < textScrollOffset) {
+                textScrollOffset = cursor;
+            }
+        }
+        lastTouchMillis = millis();
+        screen->forceDisplay();
+        return true;
+    }
+    if (event->inputEvent == INPUT_BROKER_DOWN) {
+        if (cursor < freetext.length()) {
+            cursor++;
+        }
+        lastTouchMillis = millis();
+        screen->forceDisplay();
+        return true;
+    }
+
     // '#' key: cycle input mode DIGIT -> LOWER -> UPPER -> DIGIT ...
     if (event->kbchar == '#') {
         // First, commit any pending multi-tap character
@@ -1334,6 +1360,14 @@ int32_t CannedMessageModule::runOnce()
                                          this->freetext.substring(this->cursor);
                     }
                     this->cursor++;
+                    
+                    // 自动滚动：确保光标在可见区域内
+                    // 假设屏幕宽度约 21 个字符 (128px / 6px)
+                    const int visibleChars = 20;
+                    if (this->cursor > this->textScrollOffset + visibleChars) {
+                        this->textScrollOffset = this->cursor - visibleChars;
+                    }
+                    
                     uint16_t maxChars = meshtastic_Constants_DATA_PAYLOAD_LEN - (moduleConfig.canned_message.send_bell ? 1 : 0);
                     if (this->freetext.length() > maxChars) {
                         this->cursor = maxChars;
@@ -1465,8 +1499,42 @@ void CannedMessageModule::drawKeyboard(OLEDDisplay *display, OLEDDisplayUiState 
 
     display->setColor(OLEDDISPLAY_COLOR::WHITE);
 
-    display->drawStringMaxWidth(0, 0, display->getWidth(),
-                                cannedMessageModule->drawWithCursor(cannedMessageModule->freetext, cannedMessageModule->cursor));
+    // 绘制带滚动的文本输入区域
+    {
+        String text = cannedMessageModule->freetext;
+        unsigned int cursorPos = cannedMessageModule->cursor;
+        unsigned int scrollOffset = cannedMessageModule->textScrollOffset;
+        
+        // 计算可见区域宽度（减去滚动条宽度）
+        int maxWidth = display->getWidth() - 4;  // 留出滚动条空间
+        
+        // 获取显示文本（从 scrollOffset 开始）
+        String displayText = text.substring(scrollOffset);
+        
+        // 添加光标
+        String textWithCursor = displayText.substring(0, cursorPos - scrollOffset) + "_" + displayText.substring(cursorPos - scrollOffset);
+        
+        // 绘制文本
+        display->drawStringMaxWidth(0, 0, maxWidth, textWithCursor);
+        
+        // 如果文本超出可见区域，绘制滚动条
+        int totalWidth = display->getStringWidth(text);
+        if (totalWidth > maxWidth) {
+            // 计算滚动条位置
+            int scrollbarHeight = 8;
+            int scrollbarWidth = 3;
+            int scrollbarX = display->getWidth() - scrollbarWidth - 1;
+            
+            // 滚动条位置与光标位置关联
+            float scrollRatio = (float)cursorPos / std::max(1u, (unsigned int)text.length());
+            int scrollbarY = (display->getHeight() - 20) * scrollRatio;
+            scrollbarY = std::max(0, std::min(scrollbarY, display->getHeight() - 20 - scrollbarHeight));
+            
+            // 绘制滚动条
+            display->setColor(OLEDDISPLAY_COLOR::WHITE);
+            display->fillRect(scrollbarX, 10, scrollbarWidth, scrollbarHeight);
+        }
+    }
 
     display->setFont(FONT_MEDIUM);
 

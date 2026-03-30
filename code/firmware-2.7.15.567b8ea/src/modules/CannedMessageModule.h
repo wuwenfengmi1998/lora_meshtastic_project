@@ -181,6 +181,7 @@ class CannedMessageModule : public SinglePortModule, public Observable<const UIF
     char highlight = 0x00;
     char payload = 0x00;
     unsigned int cursor = 0;
+    unsigned int textScrollOffset = 0;  // 文本滚动偏移（用于 FREETEXT 模式）
     unsigned long lastTouchMillis = 0;
     uint32_t lastFilterUpdate = 0;
     static constexpr uint32_t filterDebounceMs = 30;
