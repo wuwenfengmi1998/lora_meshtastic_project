@@ -424,8 +424,8 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
             UIFrameEvent e;
             e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
             notifyObservers(&e);
-            // Immediately process the input in the new state (freetext)
-            return handleFreeTextInput(event);
+            // 只切换状态，不处理当前按键（让用户下次按键时输入字符）
+            return 1;
         }
         break;
 
