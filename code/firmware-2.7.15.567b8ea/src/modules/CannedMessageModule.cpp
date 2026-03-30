@@ -333,6 +333,8 @@ bool CannedMessageModule::isCharInputAllowed() const
  */
 int CannedMessageModule::handleInputEvent(const InputEvent *event)
 {
+    LOG_DEBUG("CannedMessage: handleInputEvent called, runState=%d, inputEvent=%d, kbchar=%d", 
+              runState, event->inputEvent, event->kbchar);
     // Block ALL input if an alert banner is active
     if (screen && screen->isOverlayBannerShowing()) {
         return 0;
