@@ -59,12 +59,9 @@ void switchToNextMode();
 void switchToPrevMode();
 NodeListMode getCurrentMode();
 
-// Long press detection for UP/DOWN keys
-void onUpPressed();
-void onDownPressed();
-void onUpReleased();
-void onDownReleased();
-void checkLongPress();
+// Double-click detection for UP/DOWN keys (returns true if double-click detected)
+bool handleUpDoubleClick();
+bool handleDownDoubleClick();
 
 // Bitmap drawing function
 void drawScaledXBitmap16x16(int x, int y, int width, int height, const uint8_t *bitmapXBM, OLEDDisplay *display);

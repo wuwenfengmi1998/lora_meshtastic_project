@@ -50,12 +50,10 @@ static NodeListMode currentMode = MODE_LAST_HEARD;
 static int scrollIndex = 0;
 static bool autoCycleEnabled = false; // 禁用自动切换，改为手动按键控制
 
-// 长按检测变量
+// 双击检测变量（用于切换模式）
 static unsigned long lastUpPressTime = 0;
 static unsigned long lastDownPressTime = 0;
-static bool upLongPressHandled = false;
-static bool downLongPressHandled = false;
-#define LONG_PRESS_THRESHOLD_MS 500
+#define DOUBLE_CLICK_THRESHOLD_MS 400
 
 // =============================
 // Mode Control Functions (manual UP/DOWN control)
@@ -76,70 +74,38 @@ void switchToPrevMode()
     currentMode = static_cast<NodeListMode>((currentMode + MODE_COUNT - 1) % MODE_COUNT);
 }
 
-// 处理 UP 按键（短按滚动，长按切换模式）
-void handleUpKey(bool isLongPress)
-{
-    if (isLongPress) {
-        switchToPrevMode();
-    }
-    // 短按不做任何事（让 Screen.cpp 处理滚动）
-}
-
-// 处理 DOWN 按键（短按滚动，长按切换模式）
-void handleDownKey(bool isLongPress)
-{
-    if (isLongPress) {
-        switchToNextMode();
-    }
-    // 短按不做任何事（让 Screen.cpp 处理滚动）
-}
-
-// 定时器函数，检查长按状态（在 runOnce 中调用）
-void checkLongPress()
+// 处理 UP 按键双击检测（从 Screen.cpp 调用）
+// 返回 true 表示检测到双击，需要切换模式
+bool handleUpDoubleClick()
 {
     unsigned long now = millis();
     
-    // 检查 UP 长按
-    if (lastUpPressTime > 0 && !upLongPressHandled) {
-        if (now - lastUpPressTime > LONG_PRESS_THRESHOLD_MS) {
-            switchToPrevMode();
-            upLongPressHandled = true;
-        }
+    if (lastUpPressTime > 0 && (now - lastUpPressTime) < DOUBLE_CLICK_THRESHOLD_MS) {
+        // 双击触发：切换到上一个模式
+        switchToPrevMode();
+        lastUpPressTime = 0; // 重置，防止三次点击触发两次
+        return true;
     }
     
-    // 检查 DOWN 长按
-    if (lastDownPressTime > 0 && !downLongPressHandled) {
-        if (now - lastDownPressTime > LONG_PRESS_THRESHOLD_MS) {
-            switchToNextMode();
-            downLongPressHandled = true;
-        }
+    lastUpPressTime = now;
+    return false;
+}
+
+// 处理 DOWN 按键双击检测（从 Screen.cpp 调用）
+// 返回 true 表示检测到双击，需要切换模式
+bool handleDownDoubleClick()
+{
+    unsigned long now = millis();
+    
+    if (lastDownPressTime > 0 && (now - lastDownPressTime) < DOUBLE_CLICK_THRESHOLD_MS) {
+        // 双击触发：切换到下一个模式
+        switchToNextMode();
+        lastDownPressTime = 0; // 重置，防止三次点击触发两次
+        return true;
     }
-}
-
-// 标记按键按下（从 Screen.cpp 调用）
-void onUpPressed()
-{
-    lastUpPressTime = millis();
-    upLongPressHandled = false;
-}
-
-void onDownPressed()
-{
-    lastDownPressTime = millis();
-    downLongPressHandled = false;
-}
-
-// 标记按键释放（从 Screen.cpp 调用）
-void onUpReleased()
-{
-    lastUpPressTime = 0;
-    upLongPressHandled = false;
-}
-
-void onDownReleased()
-{
-    lastDownPressTime = 0;
-    downLongPressHandled = false;
+    
+    lastDownPressTime = now;
+    return false;
 }
 
 // =============================
@@ -614,9 +580,6 @@ void drawDynamicNodeListScreen(OLEDDisplay *display, OLEDDisplayUiState *state, 
     static NodeListMode previousMode = MODE_COUNT;
 
     unsigned long now = millis();
-
-    // 检查长按并切换模式
-    checkLongPress();
 
     // 如果模式改变了，强制刷新显示
     if (previousMode != currentMode) {
