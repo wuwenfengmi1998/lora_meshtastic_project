@@ -67,26 +67,33 @@ NodeListMode getCurrentMode()
 void switchToNextMode()
 {
     currentMode = static_cast<NodeListMode>((currentMode + 1) % MODE_COUNT);
+    scrollIndex = 0;  // 切换模式时重置滚动位置
 }
 
 void switchToPrevMode()
 {
     currentMode = static_cast<NodeListMode>((currentMode + MODE_COUNT - 1) % MODE_COUNT);
+    scrollIndex = 0;  // 切换模式时重置滚动位置
 }
 
-// 滚动控制函数
+// 滚动控制函数（带边界检查）
 void scrollUp()
 {
-    scrollIndex--;
-    if (scrollIndex < 0) {
-        scrollIndex = 0;
+    if (scrollIndex > 0) {
+        scrollIndex--;
     }
 }
 
 void scrollDown()
 {
-    scrollIndex++;
-    // 最大滚动值在渲染时计算，这里只做简单限制
+    // 获取节点数量并计算最大滚动值
+    int totalEntries = nodeDB->getNumMeshNodes();
+    int visibleNodeRows = 5;  // 假设可见行数
+    int maxScroll = calculateMaxScroll(totalEntries, visibleNodeRows);
+    
+    if (scrollIndex < maxScroll) {
+        scrollIndex++;
+    }
 }
 
 // 处理 UP 按键：单击滚动，双击切换模式
@@ -532,6 +539,13 @@ void drawNodeListScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t
     int totalColumns = 2;
 #endif
     int startIndex = scrollIndex * visibleNodeRows * totalColumns;
+    
+    // 边界检查：确保 startIndex 不超出范围
+    if (startIndex >= totalEntries) {
+        startIndex = 0;
+        scrollIndex = 0;  // 重置滚动位置
+    }
+    
     if (nodeDB->getMeshNodeByIndex(startIndex)->num == nodeDB->getNodeNum()) {
         startIndex++; // skip own node
     }
