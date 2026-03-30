@@ -50,6 +50,13 @@ static NodeListMode currentMode = MODE_LAST_HEARD;
 static int scrollIndex = 0;
 static bool autoCycleEnabled = false; // 禁用自动切换，改为手动按键控制
 
+// 长按检测变量
+static unsigned long lastUpPressTime = 0;
+static unsigned long lastDownPressTime = 0;
+static bool upLongPressHandled = false;
+static bool downLongPressHandled = false;
+#define LONG_PRESS_THRESHOLD_MS 500
+
 // =============================
 // Mode Control Functions (manual UP/DOWN control)
 // =============================
@@ -67,6 +74,72 @@ void switchToNextMode()
 void switchToPrevMode()
 {
     currentMode = static_cast<NodeListMode>((currentMode + MODE_COUNT - 1) % MODE_COUNT);
+}
+
+// 处理 UP 按键（短按滚动，长按切换模式）
+void handleUpKey(bool isLongPress)
+{
+    if (isLongPress) {
+        switchToPrevMode();
+    }
+    // 短按不做任何事（让 Screen.cpp 处理滚动）
+}
+
+// 处理 DOWN 按键（短按滚动，长按切换模式）
+void handleDownKey(bool isLongPress)
+{
+    if (isLongPress) {
+        switchToNextMode();
+    }
+    // 短按不做任何事（让 Screen.cpp 处理滚动）
+}
+
+// 定时器函数，检查长按状态（在 runOnce 中调用）
+void checkLongPress()
+{
+    unsigned long now = millis();
+    
+    // 检查 UP 长按
+    if (lastUpPressTime > 0 && !upLongPressHandled) {
+        if (now - lastUpPressTime > LONG_PRESS_THRESHOLD_MS) {
+            switchToPrevMode();
+            upLongPressHandled = true;
+        }
+    }
+    
+    // 检查 DOWN 长按
+    if (lastDownPressTime > 0 && !downLongPressHandled) {
+        if (now - lastDownPressTime > LONG_PRESS_THRESHOLD_MS) {
+            switchToNextMode();
+            downLongPressHandled = true;
+        }
+    }
+}
+
+// 标记按键按下（从 Screen.cpp 调用）
+void onUpPressed()
+{
+    lastUpPressTime = millis();
+    upLongPressHandled = false;
+}
+
+void onDownPressed()
+{
+    lastDownPressTime = millis();
+    downLongPressHandled = false;
+}
+
+// 标记按键释放（从 Screen.cpp 调用）
+void onUpReleased()
+{
+    lastUpPressTime = 0;
+    upLongPressHandled = false;
+}
+
+void onDownReleased()
+{
+    lastDownPressTime = 0;
+    downLongPressHandled = false;
 }
 
 // =============================
@@ -538,8 +611,18 @@ void drawDynamicNodeListScreen(OLEDDisplay *display, OLEDDisplayUiState *state, 
     // Static variables to track mode and duration
     static NodeListMode lastRenderedMode = MODE_COUNT;
     static unsigned long modeStartTime = 0;
+    static NodeListMode previousMode = MODE_COUNT;
 
     unsigned long now = millis();
+
+    // 检查长按并切换模式
+    checkLongPress();
+
+    // 如果模式改变了，强制刷新显示
+    if (previousMode != currentMode) {
+        previousMode = currentMode;
+        // 模式已切换，UI 会自动刷新
+    }
 
 #if defined(M5STACK_UNITC6L)
     display->clear();
