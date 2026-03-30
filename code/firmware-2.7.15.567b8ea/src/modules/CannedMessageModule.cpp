@@ -405,6 +405,7 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
         return handleEmotePickerInput(event);
 
     case CANNED_MESSAGE_RUN_STATE_INACTIVE:
+        LOG_DEBUG("CannedMessage: INACTIVE state, inputEvent=%d, kbchar=%d", event->inputEvent, event->kbchar);
         if (isSelect) {
             return 0; // Main button press no longer runs through powerFSM
         }
@@ -415,6 +416,7 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
         // 按 * 键进入自由文本输入模式（FREETEXT）
         // Printable char (ASCII) opens free text compose
         if (event->kbchar >= 32 && event->kbchar <= 126) {
+            LOG_DEBUG("CannedMessage: Entering FREETEXT, kbchar=%d", event->kbchar);
             runState = CANNED_MESSAGE_RUN_STATE_FREETEXT;
             requestFocus();
             UIFrameEvent e;
