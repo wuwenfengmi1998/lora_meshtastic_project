@@ -2,7 +2,8 @@
 
 ## 项目概述
 - **项目**：LoRa Meshtastic 固件开发
-- **主代码目录**：`code/firmware-2.7.15.567b8ea`（基于 Meshtastic 官方固件 v2.7.15）
+- **主代码目录**：`code/meshtastic_firmware`（基于 Meshtastic 官方最新 develop 分支）
+- **旧代码目录**：`code/firmware-2.7.15.567b8ea`（基于 Meshtastic 官方固件 v2.7.15，已废弃）
 - **构建系统**：PlatformIO + ESP-IDF (Arduino framework for ESP32)
 
 ## 硬件平台 & 自定义板卡
@@ -86,6 +87,9 @@
 
 ## 代码架构要点
 - **踩坑记录**：TCA9535 矩阵扫描 cols 计算中 `~` 运算符对 uint8_t 会整数提升为 int，导致高 4 位被污染。修复：`((~(p0In & 0xF0)) >> 4) & 0x0F`。见 scanMatrix()。
+- **踩坑记录**：`owner.role` 只在 `NodeDB::NodeDB()` 构造时同步一次（`owner.role = config.device.role`），`AdminModule::handleSetConfig()` 改 role 时不更新 `owner.role`，导致广播出去的 NodeInfo 里 role 仍是旧值。已修复：在 `AdminModule.cpp` device_tag 分支末尾加 `owner.role = config.device.role;`（2026-03-30）
+- **踩坑记录**：`NodeDB::installRoleDefaults(CLIENT_HIDDEN)` 把 `node_info_broadcast_secs = INT32_MAX`，但 `installRoleDefaults(CLIENT)` 没有对应的恢复分支，切回 CLIENT 后 NodeInfo 永远不广播。已修复：新增 CLIENT/CLIENT_MUTE 分支恢复 `default_node_info_broadcast_secs`（2026-03-30）
+- **踩坑记录**：`is_licensed = true` 时 `NodeInfoModule::allocReply()` 主动清零公钥，且接收端 `handleReceivedProtobuf()` 因 `is_licensed` mismatch 直接丢包。Flash 残留旧 HamConfig 时会触发此问题，需擦 Flash 或 App 关闭 Licensed 开关。
 - 路由层：FloodingRouter → ReliableRouter → NextHopRouter
 - 无线接口：RadioLib 抽象层（SX126x/SX128x/LR11x0/RF95）
 - 模块系统：`src/modules/` 下各功能模块（TextMessage, Position, Telemetry, etc.）
@@ -102,8 +106,30 @@
 - MAX_THREADS=40
 - 默认 env：tbeam（需要切换到 esp32c3_moonshine 系列时要指定 env）
 - **Flash 占用**（esp32c3_moonshine_travelers）：text≈1.92MB, data≈0.63MB, 总≈2.57MB / 4MB
+- **移植记录**（2026-03-30）：
+  - 将 esp32c3_moonshine_travelers 变体从 firmware-2.7.15 移植到官方最新 develop 分支
+  - 修复 `tca9535IsCharging` 未声明错误：在 Power.cpp 添加 extern 声明
 - **分区表**（partition-table.csv）：app=0x2C0000(2.75MB), OTA=0x030000(192KB), spiffs=0x100000(1MB)
 - **中文 12×12 字库**：`src/graphics/fonts/ChineseFont12x12.h`，21075 字形，535KB flash
+
+## 🔧 硬件更换计划
+
+### 问题描述
+- **症状**：不发送公钥、不发送节点名字信息（最新固件仍存在）
+- **潜在原因**：LLCC68 规格书不支持 SF11 125kHz 模式，导致 LoRa 通信异常
+
+### 解决方案
+1. **方案A**：更换为带温补晶振（TCXO）的 LoRa 模块
+   - 确保晶振精度满足 SF11 125kHz 模式要求
+   
+2. **方案B**：更换为 E22-30S 系列模块
+   - E22-900M30S 或 E22-400M30S
+   - 该系列支持更宽的工作模式
+
+### 待确认事项
+- [ ] 确认 RA-01SC-P 是否为 LLCC68 芯片
+- [ ] 测试更换 TCXO 版模块后的表现
+- [ ] 测试 E22-30S 系列的兼容性
   - 生成工具：`tools/gen_chinese_font.mjs`（需 npm install @napi-rs/canvas）
   - 覆盖：U+4E00-U+9FFF（CJK 统一汉字全集，含 GB2312 6763 字）
   - 像素判定：透明背景 + 黑色前景，alpha > 128 阈值（去掉抗锯齿毛边，字形锐利）
