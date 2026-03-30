@@ -48,6 +48,26 @@ void drawScaledXBitmap16x16(int x, int y, int width, int height, const uint8_t *
 // Static variables for dynamic cycling
 static NodeListMode currentMode = MODE_LAST_HEARD;
 static int scrollIndex = 0;
+static bool autoCycleEnabled = false; // 禁用自动切换，改为手动按键控制
+
+// =============================
+// Mode Control Functions (manual UP/DOWN control)
+// =============================
+
+NodeListMode getCurrentMode()
+{
+    return currentMode;
+}
+
+void switchToNextMode()
+{
+    currentMode = static_cast<NodeListMode>((currentMode + 1) % MODE_COUNT);
+}
+
+void switchToPrevMode()
+{
+    currentMode = static_cast<NodeListMode>((currentMode + MODE_COUNT - 1) % MODE_COUNT);
+}
 
 // =============================
 // Utility Functions
@@ -534,8 +554,8 @@ void drawDynamicNodeListScreen(OLEDDisplay *display, OLEDDisplayUiState *state, 
         modeStartTime = now;
     }
 
-    // Time to switch to next mode?
-    if (now - modeStartTime >= getModeCycleIntervalMs()) {
+    // Time to switch to next mode? (only if auto-cycle is enabled)
+    if (autoCycleEnabled && now - modeStartTime >= getModeCycleIntervalMs()) {
         currentMode = static_cast<NodeListMode>((currentMode + 1) % MODE_COUNT);
         modeStartTime = now;
     }
