@@ -133,6 +133,11 @@
 - **从 CLIENT_HIDDEN 切回 CLIENT 后 NodeInfo 永不广播**：`installRoleDefaults(CLIENT_HIDDEN)` 设置 `node_info_broadcast_secs = INT32_MAX`，但切回 CLIENT 时无对应恢复分支
   - 修复：在 `NodeDB::installRoleDefaults()` 新增 CLIENT/CLIENT_MUTE 分支，恢复 `default_node_info_broadcast_secs` 和相关广播间隔
 
+#### 人机交互修改
+- **主页按 * 进入自由文本输入模式**：移除 INACTIVE 状态下 UP/DOWN 按键触发快捷回复列表的逻辑
+  - 删除 `CannedMessageModule::handleInputEvent()` 中对 `INPUT_BROKER_UP` / `INPUT_BROKER_DOWN` 的特殊处理
+  - 按 * 键（或其他可打印字符）直接进入 FREETEXT 模式
+
 ---
 
 ## TODO（未来计划）
