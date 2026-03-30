@@ -74,38 +74,57 @@ void switchToPrevMode()
     currentMode = static_cast<NodeListMode>((currentMode + MODE_COUNT - 1) % MODE_COUNT);
 }
 
-// 处理 UP 按键双击检测（从 Screen.cpp 调用）
-// 返回 true 表示检测到双击，需要切换模式
-bool handleUpDoubleClick()
+// 滚动控制函数
+void scrollUp()
+{
+    scrollIndex--;
+    if (scrollIndex < 0) {
+        scrollIndex = 0;
+    }
+}
+
+void scrollDown()
+{
+    scrollIndex++;
+    // 最大滚动值在渲染时计算，这里只做简单限制
+}
+
+// 处理 UP 按键：单击滚动，双击切换模式
+// 返回 0: 无操作, 1: 滚动触发, 2: 模式切换触发
+int handleUpKey()
 {
     unsigned long now = millis();
     
     if (lastUpPressTime > 0 && (now - lastUpPressTime) < DOUBLE_CLICK_THRESHOLD_MS) {
         // 双击触发：切换到上一个模式
         switchToPrevMode();
-        lastUpPressTime = 0; // 重置，防止三次点击触发两次
-        return true;
+        lastUpPressTime = 0;
+        return 2;
     }
     
+    // 单击触发：滚动
+    scrollUp();
     lastUpPressTime = now;
-    return false;
+    return 1;
 }
 
-// 处理 DOWN 按键双击检测（从 Screen.cpp 调用）
-// 返回 true 表示检测到双击，需要切换模式
-bool handleDownDoubleClick()
+// 处理 DOWN 按键：单击滚动，双击切换模式
+// 返回 0: 无操作, 1: 滚动触发, 2: 模式切换触发
+int handleDownKey()
 {
     unsigned long now = millis();
     
     if (lastDownPressTime > 0 && (now - lastDownPressTime) < DOUBLE_CLICK_THRESHOLD_MS) {
         // 双击触发：切换到下一个模式
         switchToNextMode();
-        lastDownPressTime = 0; // 重置，防止三次点击触发两次
-        return true;
+        lastDownPressTime = 0;
+        return 2;
     }
     
+    // 单击触发：滚动
+    scrollDown();
     lastDownPressTime = now;
-    return false;
+    return 1;
 }
 
 // =============================

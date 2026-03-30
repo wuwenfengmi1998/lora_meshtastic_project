@@ -1597,17 +1597,19 @@ int Screen::handleInputEvent(const InputEvent *event)
             } else if (event->inputEvent == INPUT_BROKER_RIGHT || event->inputEvent == INPUT_BROKER_USER_PRESS) {
                 showNextFrame();
             } else if (event->inputEvent == INPUT_BROKER_UP) {
-                // 在节点列表界面，双击切换到上一个模式
+                // 在节点列表界面，单击滚动，双击切换模式
                 if (this->ui->getUiState()->currentFrame == framesetInfo.positions.nodelist) {
-                    if (graphics::NodeListRenderer::handleUpDoubleClick()) {
+                    int result = graphics::NodeListRenderer::handleUpKey();
+                    if (result > 0) {
                         setFastFramerate();
                         ui->update();
                     }
                 }
             } else if (event->inputEvent == INPUT_BROKER_DOWN) {
-                // 在节点列表界面，双击切换到下一个模式
+                // 在节点列表界面，单击滚动，双击切换模式
                 if (this->ui->getUiState()->currentFrame == framesetInfo.positions.nodelist) {
-                    if (graphics::NodeListRenderer::handleDownDoubleClick()) {
+                    int result = graphics::NodeListRenderer::handleDownKey();
+                    if (result > 0) {
                         setFastFramerate();
                         ui->update();
                     }

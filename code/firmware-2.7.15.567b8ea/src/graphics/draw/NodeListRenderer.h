@@ -59,9 +59,14 @@ void switchToNextMode();
 void switchToPrevMode();
 NodeListMode getCurrentMode();
 
-// Double-click detection for UP/DOWN keys (returns true if double-click detected)
-bool handleUpDoubleClick();
-bool handleDownDoubleClick();
+// Scroll control functions
+void scrollUp();
+void scrollDown();
+
+// UP/DOWN key handler: single click = scroll, double click = switch mode
+// Returns: 0=no action, 1=scroll triggered, 2=mode switch triggered
+int handleUpKey();
+int handleDownKey();
 
 // Bitmap drawing function
 void drawScaledXBitmap16x16(int x, int y, int width, int height, const uint8_t *bitmapXBM, OLEDDisplay *display);
