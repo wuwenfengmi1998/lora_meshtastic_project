@@ -55,6 +55,9 @@ static unsigned long lastUpPressTime = 0;
 static unsigned long lastDownPressTime = 0;
 #define DOUBLE_CLICK_THRESHOLD_MS 400
 
+// 前向声明
+int calculateMaxScroll(int totalEntries, int visibleRows);
+
 // =============================
 // Mode Control Functions (manual UP/DOWN control)
 // =============================
