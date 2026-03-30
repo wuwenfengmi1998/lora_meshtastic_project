@@ -926,8 +926,8 @@ bool CannedMessageModule::handleFreeTextInput(const InputEvent *event)
         return handleTabSwitch(event); // Reuse tab logic
     }
 
-    // '*' key from TCA9535 numpad acts as backspace
-    if (event->kbchar == '*') {
+    // '*' key from TCA9535 numpad acts as backspace (only if there's text)
+    if (event->kbchar == '*' && this->freetext.length() > 0) {
         payload = 0x08;
         lastTouchMillis = millis();
         runOnce();
