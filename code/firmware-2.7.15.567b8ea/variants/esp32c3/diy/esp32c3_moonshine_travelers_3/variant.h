@@ -42,7 +42,8 @@
 //         开机：持续按住 2 秒 → POWER_EN 拉高维持供电
 //         关机：运行中持续按住 2 秒 → POWER_EN 拉低断电
 //   - P1.4 LoRa RST 输出（通过 I²C 控制 RadioLib 复位序列）
-//   - P1.6 GPS_RST 输出（通过 tca9535GpsReset() 控制，init 中释放）
+//   - P1.6 振子（VIBRATOR），高电平震动，低电平停止
+//         开机确认后震动 300ms，关机时震动 300ms
 //   - P1.7 GPS_EN 输出（高电平有效，通过 enablePin 桥接到 TCA9535）
 //   - P1.1 CHARGE_DET 输入（高电平=正在充电）
 //   - 中断引脚 GPIO5，低电平有效，下降沿触发

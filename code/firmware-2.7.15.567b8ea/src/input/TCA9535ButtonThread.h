@@ -12,6 +12,7 @@
  *   - P1.3：电源开机按钮（POWER_BOOT），输入，低电平有效（按键按下接地）
  *   - P1.4：LoRa RST 输出（通过 I²C 控制 RadioLib 复位序列）
  *   - P1.5：状态指示灯，低电平点亮
+ *   - P1.6：振子（VIBRATOR），高电平震动，低电平停止
  *   P1 Config 寄存器 = 0x0A（P1.1、P1.3 为输入，其余为输出）
  *
  * 电源管理逻辑：
@@ -88,7 +89,7 @@
 #define TCA9535_BIT_P13  (1u << 3) // POWER_BOOT 输入
 #define TCA9535_BIT_P14  (1u << 4) // LoRa RST 输出
 #define TCA9535_BIT_P15  (1u << 5) // 状态指示灯输出（低电平点亮）
-#define TCA9535_BIT_P16  (1u << 6) // GPS RST 输出
+#define TCA9535_BIT_P16  (1u << 6) // 振子输出（VIBRATOR，高电平震动）
 #define TCA9535_BIT_P17  (1u << 7) // GPS EN 输出（高电平有效）
 
 #ifdef TCA9535_CHARGE_DET_PIN
@@ -240,10 +241,11 @@ static inline bool tca9535Backlight(bool on)
 }
 
 /**
- * 通过 I²C 控制 TCA9535 P1.6 上的 GPS RST。
- * @param high true=释放复位（高电平），false=触发复位（低电平）
+ * 通过 I²C 控制 TCA9535 P1.6 上的振子（VIBRATOR）。
+ * 高电平震动，低电平停止。
+ * @param on true=震动（高电平），false=停止（低电平）
  */
-static inline bool tca9535GpsReset(bool high)
+static inline bool tca9535Vibrate(bool on)
 {
     Wire.beginTransmission(TCA9535_I2C_ADDR);
     Wire.write(TCA9535_REG_OUTPUT_P1);
@@ -253,10 +255,10 @@ static inline bool tca9535GpsReset(bool high)
         return false;
     uint8_t p1Out = Wire.read();
 
-    if (high)
-        p1Out |= TCA9535_BIT_P16;  // 拉高 = 释放复位
+    if (on)
+        p1Out |= TCA9535_BIT_P16;  // 拉高 = 震动
     else
-        p1Out &= ~TCA9535_BIT_P16; // 拉低 = 触发复位
+        p1Out &= ~TCA9535_BIT_P16; // 拉低 = 停止
 
     Wire.beginTransmission(TCA9535_I2C_ADDR);
     Wire.write(TCA9535_REG_OUTPUT_P1);
@@ -342,6 +344,10 @@ class TCA9535ButtonThread : public Observable<const InputEvent *>, public concur
     // P1.0 键盘背光控制（按键时点亮，5 秒无操作熄灭）
     bool _backlightOn = false;
     uint32_t _backlightLastMs = 0;
+
+    // P1.6 振子控制（开机/关机震动 300ms）
+    bool _vibrateOn = false;
+    uint32_t _vibrateStartMs = 0;  // 震动开始时刻，0 = 未在震动
 
     // 写寄存器
     bool writeReg(uint8_t reg, uint8_t val);

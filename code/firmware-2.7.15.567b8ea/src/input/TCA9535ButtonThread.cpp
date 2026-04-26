@@ -85,15 +85,13 @@ TCA9535ButtonThread::TCA9535ButtonThread(const char *name, TwoWire *wire)
 
 bool TCA9535ButtonThread::init()
 {
-    // ===================================================================
-    // 第一步：配置 P1 口方向
-    // P1.0=输出(未用), P1.1=输入(CHARGE_DET), P1.2=输出(POWER_EN),
+    // P1 口方向注释：
+    // P1.0=输出(键盘背光), P1.1=输入(CHARGE_DET), P1.2=输出(POWER_EN),
     // P1.3=输入(POWER_BOOT), P1.4=输出(LoRa RST), P1.5=输出(状态灯),
-    // P1.6=输出(GPS RST), P1.7=输出(GPS EN)
-    // Configuration 寄存器：1=input, 0=output
+    // P1.6=输出(振子 VIBRATOR), P1.7=输出(GPS EN)
+    // P1 口配置寄存器：1=input, 0=output
     // bit: P1.7 P1.6 P1.5 P1.4 P1.3 P1.2 P1.1 P1.0
     //        0    0    0    0    1    0    1    0   = 0x0A
-    // ===================================================================
     if (!writeReg(TCA9535_REG_CONFIG_P1, 0x0A)) {
         LOG_WARN("TCA9535: P1 config write failed");
         return false;
@@ -109,8 +107,8 @@ bool TCA9535ButtonThread::init()
     // P1.5 状态灯默认熄灭（高电平）
     tca9535StatusLed(false);
 
-    // P1.6 GPS RST 默认释放（高电平 = 正常工作）
-    tca9535GpsReset(true);
+    // P1.6 振子默认关闭（低电平）
+    tca9535Vibrate(false);
 
     // P1.7 GPS EN 默认打开（高电平 = GPS 上电）
     tca9535GpsEn(true);
@@ -118,10 +116,16 @@ bool TCA9535ButtonThread::init()
     // ===================================================================
     // 第三步：POWER_EN 已由 main.cpp 在 Wire.begin() 后立即拉高，
     //   并等待 P1.3 持续按住 2 秒确认开机（超时 3 秒则断电关机）。
-    //   此处只需确认状态机进入 RUNNING。
+    //   此处只需确认状态机进入 RUNNING，并触发开机震动 300ms。
     // ===================================================================
     LOG_INFO("TCA9535: Boot already confirmed in early boot, state=RUNNING");
     _powerState = TCA9535PowerState::RUNNING;
+
+    // 开机震动 300ms
+    tca9535Vibrate(true);
+    _vibrateOn = true;
+    _vibrateStartMs = millis();
+    LOG_DEBUG("TCA9535: Boot vibration started (300ms)");
 
     // ===================================================================
     // 第四步：配置 P0 口方向（矩阵键盘）
@@ -177,6 +181,13 @@ int32_t TCA9535ButtonThread::runOnce()
             if (held >= TCA9535_POWER_BOOT_HOLD_MS) {
                 LOG_WARN("TCA9535: Power button held %lu ms -> SHUTDOWN", held);
                 _powerBtnPressStart = 0;
+                // 关机震动 300ms，震动结束后由振子超时逻辑触发 SHUTDOWN 事件
+                if (!_vibrateOn) {
+                    tca9535Vibrate(true);
+                    _vibrateOn = true;
+                    _vibrateStartMs = millis();
+                    LOG_DEBUG("TCA9535: Shutdown vibration started (300ms)");
+                }
                 dispatchEvent(INPUT_BROKER_SHUTDOWN);
             }
         } else if (!pressed && _powerBtnPressStart != 0) {
@@ -186,6 +197,15 @@ int32_t TCA9535ButtonThread::runOnce()
             _powerBtnPressStart = 0;
             dispatchEvent(INPUT_BROKER_CANCEL);
         }
+    }
+
+    // ===================================================================
+    // P1.6 振子超时停止：震动 300ms 后自动关闭
+    // ===================================================================
+    if (_vibrateOn && millis() - _vibrateStartMs >= 300) {
+        _vibrateOn = false;
+        tca9535Vibrate(false);
+        LOG_DEBUG("TCA9535: Vibration stopped");
     }
 
     // ===================================================================
