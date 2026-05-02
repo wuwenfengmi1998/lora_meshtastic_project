@@ -335,69 +335,106 @@ void printInfo()
 #ifndef PIO_UNIT_TESTING
 void setup()
 {
+// 适用于 R1_NEO 硬件：初始化 DCDC 和 NRF 模块电源使能引脚
 #if defined(R1_NEO)
+    // 将 DCDC 电源保持引脚设置为输出模式，用于后续控制 DCDC 电源使能
     pinMode(DCDC_EN_HOLD, OUTPUT);
+    // 拉高 DCDC 电源保持引脚，使能 DCDC 电源，确保核心电路供电正常
     digitalWrite(DCDC_EN_HOLD, HIGH);
+    // 将 NRF 模块电源使能引脚设置为输出模式
     pinMode(NRF_ON, OUTPUT);
+    // 拉高 NRF 电源使能引脚，开启 NRF 模块电源
     digitalWrite(NRF_ON, HIGH);
 #endif
 
+// 适用于带 PIN_POWER_EN 引脚的硬件：初始化通用电源使能引脚
 #if defined(PIN_POWER_EN)
+    // 将通用电源使能引脚设置为输出模式
     pinMode(PIN_POWER_EN, OUTPUT);
+    // 拉高电源使能引脚，开启外设电源
     digitalWrite(PIN_POWER_EN, HIGH);
 #endif
 
+// 适用于 ELECROW ThinkNode M5 硬件：初始化 I2C 总线及 PCA9557 IO 扩展器电源引脚
 #if defined(ELECROW_ThinkNode_M5)
+    // 初始化 I2C 总线，SDA=48，SCL=47
     Wire.begin(48, 47);
+    // 设置 PCA9557 的电子墨水屏使能引脚为输出模式
     io.pinMode(PCA_PIN_EINK_EN, OUTPUT);
+    // 设置 PCA9557 的电源使能引脚为输出模式
     io.pinMode(PCA_PIN_POWER_EN, OUTPUT);
+    // 拉高 PCA9557 电源使能引脚，开启外设电源
     io.digitalWrite(PCA_PIN_POWER_EN, HIGH);
     // io.pinMode(C2_PIN, OUTPUT);
 #endif
 
+// 适用于带 LED_POWER 引脚的硬件：初始化电源指示灯
 #ifdef LED_POWER
+    // 将电源指示灯引脚设置为输出模式
     pinMode(LED_POWER, OUTPUT);
+    // 设置电源指示灯为点亮状态（LED_STATE_ON 为点亮电平）
     digitalWrite(LED_POWER, LED_STATE_ON);
 #endif
 
+// 适用于带 USER_LED 引脚的硬件：初始化用户指示灯
 #ifdef USER_LED
+    // 将用户 LED 引脚设置为输出模式
     pinMode(USER_LED, OUTPUT);
+    // 设置用户 LED 状态（HIGH 与 LED_STATE_ON 异或，适配 LED 电平逻辑）
     digitalWrite(USER_LED, HIGH ^ LED_STATE_ON);
 #endif
 
+// 适用于带 WIFI_LED 引脚的硬件：初始化 WiFi 指示灯
 #ifdef WIFI_LED
+    // 将 WiFi 指示灯引脚设置为输出模式
     pinMode(WIFI_LED, OUTPUT);
+    // 初始设置 WiFi 指示灯为熄灭状态
     digitalWrite(WIFI_LED, LOW);
 #endif
 
+// 适用于带 BLE_LED 引脚的硬件：初始化蓝牙指示灯
 #ifdef BLE_LED
+    // 将蓝牙指示灯引脚设置为输出模式
     pinMode(BLE_LED, OUTPUT);
 #ifdef BLE_LED_INVERTED
+    // 若蓝牙 LED 为低电平点亮（反逻辑），则拉高引脚熄灭
     digitalWrite(BLE_LED, HIGH);
 #else
+    // 若蓝牙 LED 为高电平点亮，则拉低引脚熄灭
     digitalWrite(BLE_LED, LOW);
 #endif
 #endif
 
+// 适用于 T-Deck、T-Deck Pro、T-LoRa Pager 等硬件：初始化外设电源、SPI 片选引脚及 IO 扩展器
 #if defined(T_DECK)
+    // GPIO10 控制所有外设电源，启动后立即开启避免低电压导致 ESP32 复位
     // GPIO10 manages all peripheral power supplies
     // Turn on peripheral power immediately after MUC starts.
     // If some boards are turned on late, ESP32 will reset due to low voltage.
+    // 外设包括：ESP32-C3(键盘)、MAX98357A(音频功放)、TF卡、显示屏背光、轨迹球、解码器
     // ESP32-C3(Keyboard) , MAX98357A(Audio Power Amplifier) ,
     // TF Card , Display backlight(AW9364DNR) , AN48841B(Trackball) , ES7210(Decoder)
+    // 将键盘电源使能引脚设置为输出模式
     pinMode(KB_POWERON, OUTPUT);
+    // 拉高键盘电源引脚，开启外设电源
     digitalWrite(KB_POWERON, HIGH);
+    // T-Deck 的 TFT、SD、LoRa 共用同一 SPI 总线，需提前初始化所有片选引脚避免通信冲突
     // T-Deck has all three SPI peripherals (TFT, SD, LoRa) attached to the same SPI bus
     // We need to initialize all CS pins in advance otherwise there will be SPI communication issues
     // e.g. when detecting the SD card
+    // 初始化 LoRa 片选引脚为输出并拉高（默认不选中）
     pinMode(LORA_CS, OUTPUT);
     digitalWrite(LORA_CS, HIGH);
+    // 初始化 SD 卡片选引脚为输出并拉高（默认不选中）
     pinMode(SDCARD_CS, OUTPUT);
     digitalWrite(SDCARD_CS, HIGH);
+    // 初始化 TFT 屏幕片选引脚为输出并拉高（默认不选中）
     pinMode(TFT_CS, OUTPUT);
     digitalWrite(TFT_CS, HIGH);
+    // 等待外设电源稳定
     delay(100);
 #elif defined(T_DECK_PRO)
+    // T-Deck Pro 硬件：初始化 LoRa、SD 卡、电子墨水屏的片选引脚并拉高
     pinMode(LORA_EN, OUTPUT);
     digitalWrite(LORA_EN, HIGH);
     pinMode(LORA_CS, OUTPUT);
@@ -407,64 +444,94 @@ void setup()
     pinMode(PIN_EINK_CS, OUTPUT);
     digitalWrite(PIN_EINK_CS, HIGH);
 #elif defined(T_LORA_PAGER)
+    // T-LoRa Pager 硬件：初始化 SPI 片选引脚、键盘中断引脚及 XL9555 IO 扩展器
     pinMode(LORA_CS, OUTPUT);
     digitalWrite(LORA_CS, HIGH);
     pinMode(SDCARD_CS, OUTPUT);
     digitalWrite(SDCARD_CS, HIGH);
     pinMode(TFT_CS, OUTPUT);
     digitalWrite(TFT_CS, HIGH);
+    // 设置键盘中断引脚为上拉输入模式
     pinMode(KB_INT, INPUT_PULLUP);
+    // 初始化 XL9555 IO 扩展器，使用默认 Wire 总线，地址为 XL9555_SLAVE_ADDRESS0
     // io expander
     io.begin(Wire, XL9555_SLAVE_ADDRESS0, SDA, SCL);
+    // 设置驱动使能引脚为输出并拉高，开启驱动
     io.pinMode(EXPANDS_DRV_EN, OUTPUT);
     io.digitalWrite(EXPANDS_DRV_EN, HIGH);
+    // 设置音频功放使能引脚为输出并拉低，关闭功放（默认不开启）
     io.pinMode(EXPANDS_AMP_EN, OUTPUT);
     io.digitalWrite(EXPANDS_AMP_EN, LOW);
+    // 设置 LoRa 使能引脚为输出并拉高，开启 LoRa 模块
     io.pinMode(EXPANDS_LORA_EN, OUTPUT);
     io.digitalWrite(EXPANDS_LORA_EN, HIGH);
+    // 设置 GPS 使能引脚为输出并拉高，开启 GPS 模块
     io.pinMode(EXPANDS_GPS_EN, OUTPUT);
     io.digitalWrite(EXPANDS_GPS_EN, HIGH);
+    // 设置键盘使能引脚为输出并拉高，开启键盘
     io.pinMode(EXPANDS_KB_EN, OUTPUT);
     io.digitalWrite(EXPANDS_KB_EN, HIGH);
+    // 设置 SD 卡使能引脚为输出并拉高，开启 SD 卡
     io.pinMode(EXPANDS_SD_EN, OUTPUT);
     io.digitalWrite(EXPANDS_SD_EN, HIGH);
+    // 设置 GPIO 扩展使能引脚为输出并拉高，开启扩展 GPIO
     io.pinMode(EXPANDS_GPIO_EN, OUTPUT);
     io.digitalWrite(EXPANDS_GPIO_EN, HIGH);
+    // 设置 SD 卡上拉使能引脚为输入模式
     io.pinMode(EXPANDS_SD_PULLEN, INPUT);
 #endif
+    // 标记并发框架已完成 setup 初始化
     concurrency::hasBeenSetup = true;
+// 根据平台配置 SPI 通信参数：时钟速度、位顺序（MSB 优先）、SPI 模式
 #if ARCH_PORTDUINO
+    // Portduino 平台：使用用户配置的 SPI 速度
     SPISettings spiSettings(portduino_config.spiSpeed, MSBFIRST, SPI_MODE0);
 #else
+    // 其他平台：默认 SPI 时钟 4MHz，MSB 优先，模式0
     SPISettings spiSettings(4000000, MSBFIRST, SPI_MODE0);
 #endif
 
+    // 设置屏幕默认型号为 OLED_AUTO（自动检测），默认分辨率为 128x64
     meshtastic_Config_DisplayConfig_OledType screen_model =
         meshtastic_Config_DisplayConfig_OledType::meshtastic_Config_DisplayConfig_OledType_OLED_AUTO;
     OLEDDISPLAY_GEOMETRY screen_geometry = GEOMETRY_128_64;
 
+// 适用于启用 SEGGER RTT 调试输出的硬件：配置 RTT 上行缓冲区
 #ifdef USE_SEGGER
+    // 设置 RTT 模式：非阻塞裁剪模式（FIFO 满时丢弃数据）
     auto mode = false ? SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL : SEGGER_RTT_MODE_NO_BLOCK_TRIM;
 #ifdef NRF52840_XXAA
+    // NRF52840 内存较大，设置 RTT 缓冲区大小为 4096 字节
     auto buflen = 4096; // this board has a fair amount of ram
 #else
+    // 其他板卡内存较小，设置 RTT 缓冲区大小为 256 字节
     auto buflen = 256; // this board has a fair amount of ram
 #endif
+    // 配置 SEGGER RTT 上行缓冲区（用于调试输出）
     SEGGER_RTT_ConfigUpBuffer(SEGGER_STDOUT_CH, NULL, NULL, buflen, mode);
 #endif
 
+// 适用于启用调试串口（DEBUG_PORT）的硬件：初始化串口控制台
 #ifdef DEBUG_PORT
+    // 初始化调试串口（设置波特率等）并启动 mesh 控制台
     consoleInit(); // Set serial baud rate and init our mesh console
 #endif
 
+// 适用于 UNPHONE 硬件：打印存储信息
 #ifdef UNPHONE
+    // 打印 UNPHONE 的存储状态信息
     unphone.printStore();
 #endif
 
+// 适用于 Portduino 平台：初始化系统时间并设置 RTC
 #if ARCH_PORTDUINO
+    // 定义时间结构体
     struct timeval tv;
+    // 获取当前系统时间（秒级）并赋值
     tv.tv_sec = time(NULL);
+    // 微秒级时间设为 0
     tv.tv_usec = 0;
+    // 尝试设置 RTC 时间，质量标记为设备级
     perhapsSetRTC(RTCQualityDevice, &tv);
 #endif
 
@@ -554,43 +621,58 @@ void setup()
 #endif
 #endif
 
+    // 初始化 SPI 总线（配置 SPI 参数并启动）
     initSPI();
 
+    // 初始化 OSThread 并发框架（设置线程调度基础）
     OSThread::setup();
 
+// 适用于 ELECROW ThinkNode M1/M2 硬件：使用自定义 LED 闪烁逻辑（当前注释未启用）
 #if defined(ELECROW_ThinkNode_M1) || defined(ELECROW_ThinkNode_M2)
     // The ThinkNodes have their own blink logic
     // ledPeriodic = new Periodic("Blink", elecrowLedBlinker);
 #else
+    // 其他硬件：创建 LED 周期闪烁线程（默认 1Hz 心跳效果）
     ledPeriodic = new Periodic("Blink", ledBlinker);
 #endif
 
+    // 初始化文件系统（挂载 SPI Flash/SD 卡等存储设备）
     fsInit();
 
+// 阶段3：I2C 总线初始化与设备扫描（排除 I2C 功能时跳过）
 #if !MESHTASTIC_EXCLUDE_I2C
+// 初始化第二 I2C 总线（Wire1，适用于有 2 个 I2C 接口的平台）
 #if defined(I2C_SDA1) && defined(ARCH_RP2040)
+    // RP2040 平台：设置 Wire1 的 SDA/SCL 引脚并启动总线
     Wire1.setSDA(I2C_SDA1);
     Wire1.setSCL(I2C_SCL1);
     Wire1.begin();
 #elif defined(I2C_SDA1) && !defined(ARCH_RP2040)
+    // 非 RP2040 平台：启动 Wire1 总线并指定 SDA/SCL 引脚
     Wire1.begin(I2C_SDA1, I2C_SCL1);
 #elif WIRE_INTERFACES_COUNT == 2
+    // 平台有 2 个 I2C 接口：启动默认 Wire1 总线
     Wire1.begin();
 #endif
 
+// 初始化主 I2C 总线（Wire）
 #if defined(I2C_SDA) && defined(ARCH_RP2040)
+    // RP2040 平台：设置主 Wire 的 SDA/SCL 引脚并启动总线
     Wire.setSDA(I2C_SDA);
     Wire.setSCL(I2C_SCL);
     Wire.begin();
 #elif defined(I2C_SDA) && !defined(ARCH_RP2040)
+    // 非 RP2040 平台：启动主 Wire 总线并指定 SDA/SCL 引脚
     Wire.begin(I2C_SDA, I2C_SCL);
 #ifdef HAS_TCA9535_BUTTON
+    // TCA9535 电源使能必须在 I2C 初始化后立即拉高，防止用户松开按键后系统掉电
     // TCA9535 POWER_EN 必须在 I²C 初始化完成后立即拉高，否则用户松开按键后
     // MOS 断电，系统在 setup() 中途就会掉电。
     tca9535PowerEn(true);
     LOG_INFO("TCA9535: POWER_EN latched HIGH (early boot)");
 #endif
 #elif defined(ARCH_PORTDUINO)
+    // Portduino 平台：根据配置启动主 I2C 总线
     if (portduino_config.i2cdev != "") {
         LOG_INFO("Use %s as I2C device", portduino_config.i2cdev.c_str());
         Wire.begin(portduino_config.i2cdev.c_str());
@@ -598,36 +680,59 @@ void setup()
         LOG_INFO("No I2C device configured, Skip");
     }
 #elif HAS_WIRE
+    // 其他有 Wire 总线的平台：启动默认主 I2C 总线
     Wire.begin();
 #endif
 #endif
 
+// 适用于 M5STACK_UNITC6L 硬件：初始化 LoRa 片选引脚并启动 C6L 模块
 #if defined(M5STACK_UNITC6L)
+    // 设置 LoRa 片选引脚为输出模式
     pinMode(LORA_CS, OUTPUT);
+    // 拉高片选引脚，默认不选中 LoRa
     digitalWrite(LORA_CS, 1);
+    // 初始化 M5STACK_UNITC6L 模块
     c6l_init();
 #endif
 
+// 适用于带 LCD 复位引脚的硬件：执行 LCD 复位时序
 #ifdef PIN_LCD_RESET
+    // FIXME - 后续将该复位逻辑移至更合适的位置，LCD I2C 地址为 0x3F
     // FIXME - move this someplace better, LCD is at address 0x3F
+    // 设置 LCD 复位引脚为输出模式
     pinMode(PIN_LCD_RESET, OUTPUT);
+    // 拉低复位引脚，触发 LCD 复位
     digitalWrite(PIN_LCD_RESET, 0);
+    // 延时 1ms 确保复位生效
     delay(1);
+    // 拉高复位引脚，结束复位状态
     digitalWrite(PIN_LCD_RESET, 1);
+    // 延时 1ms 等待 LCD 启动
     delay(1);
 #endif
 
+// 适用于带空气质量传感器（AQ）设置引脚的硬件：初始化 AQ 传感器电源
 #ifdef AQ_SET_PIN
+    // RAK-12039 空气质量传感器设置引脚，上电后约 3 秒可在 I2C 检测到，需后续重新扫描
     // RAK-12039 set pin for Air quality sensor. Detectable on I2C after ~3 seconds, so we need to rescan later
+    // 设置 AQ 传感器电源引脚为输出模式
     pinMode(AQ_SET_PIN, OUTPUT);
+    // 拉高引脚，开启 AQ 传感器电源
     digitalWrite(AQ_SET_PIN, HIGH);
 #endif
 
+    // 初始化电源管理单元（PMU，目前仅 T-Beam 等硬件有）
+    // 当前仅 T-Beam 等硬件有 PMU
     // Currently only the tbeam has a PMU
+    // PMU 初始化必须放在 I2C 扫描之前，因为需要 PMU 为外设供电
     // PMU initialization needs to be placed before i2c scanning
+    // 创建 Power 实例（电源管理核心对象）
     power = new Power();
+    // 设置电源状态处理器为 powerStatus，用于接收电源状态更新
     power->setStatusHandler(powerStatus);
+    // 让 powerStatus 观察 power 的新状态事件
     powerStatus->observe(&power->newStatus);
+    // 执行 PMU 初始化（必须在状态处理器安装后，确保接收初始配置通知）
     power->setup(); // Must be after status handler is installed, so that handler gets notified of the initial configuration
 
 #if !MESHTASTIC_EXCLUDE_I2C
@@ -671,68 +776,91 @@ void setup()
     }
 #endif
 
+    // 检测 I2C 扫描到的第一个屏幕设备，更新屏幕型号
     auto screenInfo = i2cScanner->firstScreen();
+    // 记录屏幕设备地址（未找到则为 ADDRESS_NONE）
     screen_found = screenInfo.type != ScanI2C::DeviceType::NONE ? screenInfo.address : ScanI2C::ADDRESS_NONE;
 
+    // 若找到屏幕设备，根据型号更新屏幕型号配置
     if (screen_found.port != ScanI2C::I2CPort::NO_I2C) {
         switch (screenInfo.type) {
         case ScanI2C::DeviceType::SCREEN_SH1106:
+            // SH1106 屏幕型号（128x64 OLED）
             screen_model = meshtastic_Config_DisplayConfig_OledType::meshtastic_Config_DisplayConfig_OledType_OLED_SH1106;
             break;
         case ScanI2C::DeviceType::SCREEN_SSD1306:
+            // SSD1306 屏幕型号（128x64 OLED）
             screen_model = meshtastic_Config_DisplayConfig_OledType::meshtastic_Config_DisplayConfig_OledType_OLED_SSD1306;
             break;
         case ScanI2C::DeviceType::SCREEN_ST7567:
         case ScanI2C::DeviceType::SCREEN_UNKNOWN:
         default:
+            // 未知或 ST7567 屏幕，保持自动检测模式
             screen_model = meshtastic_Config_DisplayConfig_OledType::meshtastic_Config_DisplayConfig_OledType_OLED_AUTO;
         }
     }
 
+// 宏定义：从扫描结果更新传感器映射（当前未使用，预留扩展）
 #define UPDATE_FROM_SCANNER(FIND_FN)
+// 若定义了虚拟键盘，直接标记键盘已找到
 #if defined(USE_VIRTUAL_KEYBOARD)
     kb_found = true;
 #endif
+    // 获取第一个 RTC 设备信息，更新 RTC 地址
     auto rtc_info = i2cScanner->firstRTC();
     rtc_found = rtc_info.type != ScanI2C::DeviceType::NONE ? rtc_info.address : rtc_found;
 
+    // 获取第一个键盘设备信息
     auto kb_info = i2cScanner->firstKeyboard();
 
+    // 若找到键盘设备，标记并配置键盘型号
     if (kb_info.type != ScanI2C::DeviceType::NONE) {
+        // 标记已找到键盘
         kb_found = true;
+        // 记录键盘设备地址
         cardkb_found = kb_info.address;
+        // 根据键盘型号设置 kb_model 值（用于区分不同键盘型号）
         switch (kb_info.type) {
         case ScanI2C::DeviceType::RAK14004:
+            // RAK14004 键盘型号标识（0x02）
             kb_model = 0x02;
             break;
         case ScanI2C::DeviceType::CARDKB:
+            // CARDKB 键盘型号标识（0x00）
             kb_model = 0x00;
             break;
         case ScanI2C::DeviceType::TDECKKB:
+            // T-Deck 键盘型号标识（0x10）
             // assign an arbitrary value to distinguish from other models
             kb_model = 0x10;
             break;
         case ScanI2C::DeviceType::BBQ10KB:
+            // BBQ10 键盘型号标识（0x11）
             // assign an arbitrary value to distinguish from other models
             kb_model = 0x11;
             break;
         case ScanI2C::DeviceType::MPR121KB:
+            // MPR121 键盘型号标识（0x37）
             // assign an arbitrary value to distinguish from other models
             kb_model = 0x37;
             break;
         case ScanI2C::DeviceType::TCA8418KB:
+            // TCA8418 键盘型号标识（0x84）
             // assign an arbitrary value to distinguish from other models
             kb_model = 0x84;
             break;
         default:
+            // 未知键盘型号，默认使用 0x00
             // use this as default since it's also just zero
             LOG_WARN("kb_info.type is unknown(0x%02x), setting kb_model=0x00", kb_info.type);
             kb_model = 0x00;
         }
     }
 
+    // 检查 PMU（AXP192/AXP2101）是否存在，更新 pmu_found 标志
     pmu_found = i2cScanner->exists(ScanI2C::DeviceType::PMU_AXP192_AXP2101);
 
+    // 获取第一个空气质量传感器（AQI）信息，更新 aqi_found 地址
     auto aqiInfo = i2cScanner->firstAQI();
     aqi_found = aqiInfo.type != ScanI2C::DeviceType::NONE ? aqiInfo.address : ScanI2C::ADDRESS_NONE;
 
@@ -742,19 +870,24 @@ void setup()
  * "found".
  */
 
-// Two supported RGB LED currently
+// 当前支持两种 RGB LED 检测
 #ifdef HAS_RGB_LED
+    // 从扫描结果获取 RGB LED 设备信息
     rgb_found = i2cScanner->firstRGBLED();
 #endif
 
 #ifdef HAS_TPS65233
+    // TPS65233 是卫星调制解调器的电源管理 IC，用于 Dreamcatcher 硬件
     // TPS65233 is a power management IC for satellite modems, used in the Dreamcatcher
+    // 此处关闭 LNB 电源（我们使用卫星调制解调器时不使用 LNB）
     // We are switching it off here since we don't use an LNB.
     if (i2cScanner->exists(ScanI2C::DeviceType::TPS65233)) {
+        // 写入寄存器 0：关闭 LNB 电源，保持 I2C 控制使能
         Wire.beginTransmission(TPS65233_ADDR);
         Wire.write(0);   // Register 0
         Wire.write(128); // Turn off the LNB power, keep I2C Control enabled
         Wire.endTransmission();
+        // 写入寄存器 1：关闭 22kHz 音调发生器
         Wire.beginTransmission(TPS65233_ADDR);
         Wire.write(1); // Register 1
         Wire.write(0); // Turn off Tone Generator 22kHz
@@ -762,19 +895,31 @@ void setup()
     }
 #endif
 
+// 非 STM32WL 平台：检测加速度计并获取设备地址
 #if !defined(ARCH_STM32WL)
+    // 获取第一个加速度计设备信息
     auto acc_info = i2cScanner->firstAccelerometer();
+    // 更新加速度计设备地址（未找到则保持原值）
     accelerometer_found = acc_info.type != ScanI2C::DeviceType::NONE ? acc_info.address : accelerometer_found;
+    // 输出加速度计设备类型调试信息
     LOG_DEBUG("acc_info = %i", acc_info.type);
 #endif
 
+    // 将 INA260 传感器映射到遥测传感器类型
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::INA260, meshtastic_TelemetrySensorType_INA260);
+    // 将 INA226 传感器映射到遥测传感器类型
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::INA226, meshtastic_TelemetrySensorType_INA226);
+    // 将 INA219 传感器映射到遥测传感器类型
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::INA219, meshtastic_TelemetrySensorType_INA219);
+    // 将 INA3221 传感器映射到遥测传感器类型
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::INA3221, meshtastic_TelemetrySensorType_INA3221);
+    // 将 MAX17048 传感器映射到遥测传感器类型
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::MAX17048, meshtastic_TelemetrySensorType_MAX17048);
+    // 将 QMC6310 传感器映射到遥测传感器类型
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::QMC6310, meshtastic_TelemetrySensorType_QMC6310);
+    // 将 QMI8658 传感器映射到遥测传感器类型
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::QMI8658, meshtastic_TelemetrySensorType_QMI8658);
+    // 将 QMC5883L 传感器映射到遥测传感器类型
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::QMC5883L, meshtastic_TelemetrySensorType_QMC5883L);
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::HMC5883L, meshtastic_TelemetrySensorType_QMC5883L);
     scannerToSensorsMap(i2cScanner, ScanI2C::DeviceType::PMSA0031, meshtastic_TelemetrySensorType_PMSA003I);
