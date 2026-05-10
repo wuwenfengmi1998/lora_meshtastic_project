@@ -194,7 +194,7 @@ class CannedMessageModule : public SinglePortModule, public Observable<const UIF
 #endif
 
     // === Multi-tap T9 input method (for TCA9535 numpad) ===
-    enum class InputMode : uint8_t { DIGIT, LOWER, UPPER };
+    enum class InputMode : uint8_t { DIGIT, LOWER, UPPER, CHINESE };
     InputMode inputMode = InputMode::LOWER; // 默认小写字母模式
     uint8_t  multiTapKey = 0xFF;            // 上一次按的数字键 ('0'-'9'), 0xFF = no pending key
     uint8_t  multiTapIndex = 0;             // 当前循环索引
@@ -212,6 +212,15 @@ class CannedMessageModule : public SinglePortModule, public Observable<const UIF
     bool handleFreeTextInput(const InputEvent *event);
     bool commitMultiTap(); // Returns true if a character was actually committed
     void showMultiTapPreview();
+    
+    // === 中文输入法相关方法 ===
+    bool handleChineseInput(const InputEvent *event);  // 处理中文输入模式的按键
+    void drawChineseInput(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y);  // 绘制中文输入界面
+    
+    // === 中文输入法相关成员变量 ===
+    String chinesePinyin;  // 当前输入的拼音
+    String chineseCandidates;  // 候选汉字字符串（用逗号分隔）
+    int chineseCandidateIndex;  // 当前选中的候选字索引
 
 #if defined(USE_VIRTUAL_KEYBOARD)
     Letter keyboard[2][4][10] = {{{{"Q", 20, 0, 0, 0, 0},
