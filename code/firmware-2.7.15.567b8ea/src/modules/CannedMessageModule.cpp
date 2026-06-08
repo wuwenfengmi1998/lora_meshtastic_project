@@ -57,6 +57,12 @@ const char *const CannedMessageModule::t9LetterMap[][5] = {
 #include "graphics/fonts/ChineseFont12x12.h"
 #include <Throttle.h>
 
+// === 中文输入法：常用汉字列表（6个）===
+// 在 handleChineseInput() 和 drawChineseInput() 方法中硬编码使用
+// 格式：数字键 -> 汉字
+static const char* chineseChars[] = {"我", "你", "他", "是", "的", "好"};
+
+
 // Remove Canned message screen if no action is taken for some milliseconds
 #define INACTIVATE_AFTER_MS 20000
 
@@ -786,6 +792,11 @@ bool CannedMessageModule::handleFreeTextInput(const InputEvent *event)
     if (runState != CANNED_MESSAGE_RUN_STATE_FREETEXT)
         return false;
 
+    // === 中文输入模式处理 ===
+    if (inputMode == InputMode::CHINESE) {
+        return handleChineseInput(event);
+    }
+
 #if defined(USE_VIRTUAL_KEYBOARD)
     // Cancel (dismiss freetext screen)
     if (event->inputEvent == INPUT_BROKER_LEFT) {
@@ -961,12 +972,12 @@ bool CannedMessageModule::handleFreeTextInput(const InputEvent *event)
         return true;
     }
 
-    // '#' key: cycle input mode DIGIT -> LOWER -> UPPER -> DIGIT ...
+    // '#' key: cycle input mode DIGIT -> LOWER -> UPPER -> CHINESE -> DIGIT ...
     if (event->kbchar == '#') {
         // First, commit any pending multi-tap character
         commitMultiTap();
         int m = static_cast<int>(inputMode);
-        inputMode = static_cast<InputMode>((m + 1) % 3);
+        inputMode = static_cast<InputMode>((m + 1) % 4);  // 修改为 %4，支持4种模式
         LOG_DEBUG("[T9] Input mode: %d", (int)inputMode);
         lastTouchMillis = millis();
         // Use REDRAW_ONLY: commitMultiTap() already triggered REGENERATE_FRAMESET,
@@ -1078,6 +1089,96 @@ int CannedMessageModule::handleEmotePickerInput(const InputEvent *event)
     }
 
     return 0;
+}
+
+// === 中文输入法：数字选择汉字 ===
+bool CannedMessageModule::handleChineseInput(const InputEvent *event)
+{
+    // 数字键1-6：选择对应的汉字
+    if (event->kbchar >= '1' && event->kbchar <= '6') {
+        // 常用汉字列表（6个）
+        static const char* chineseChars[] = {"我", "你", "他", "是", "的", "好"};
+        int index = event->kbchar - '1';
+        
+        // 插入选中的汉字到 freetext
+        String chineseChar = chineseChars[index];
+        if (cursor >= freetext.length()) {
+            freetext += chineseChar;
+        } else {
+            freetext = freetext.substring(0, cursor) + chineseChar + freetext.substring(cursor);
+        }
+        cursor += chineseChar.length();
+        
+        lastTouchMillis = millis();
+        screen->forceDisplay();
+        return true;
+    }
+    
+    // * 键或 BACK 键：删除最后一个字符
+    if (event->kbchar == '*' || event->inputEvent == INPUT_BROKER_BACK) {
+        if (freetext.length() > 0) {
+            // 简化处理：删除最后1-3个字节（UTF-8中文是3字节）
+            // 找到最后一个UTF-8字符的起始位置
+            int lastPos = freetext.length() - 1;
+            while (lastPos >= 0 && (freetext[lastPos] & 0xC0) == 0x80) {
+                lastPos--;  // 向前找到UTF-8字符的起始字节
+            }
+            if (lastPos >= 0) {
+                freetext.remove(lastPos);
+                if (cursor > lastPos) {
+                    cursor = lastPos;
+                }
+            }
+        }
+        lastTouchMillis = millis();
+        screen->forceDisplay();
+        return true;
+    }
+    
+    // SELECT 键：切换回其他输入模式（或确认输入）
+    if (isSelectEvent(event)) {
+        // 切换到小写字母模式，继续输入
+        inputMode = InputMode::LOWER;
+        lastTouchMillis = millis();
+        screen->forceDisplay();
+        return true;
+    }
+    
+    // 其他按键：不处理
+    return false;
+}
+
+// === 绘制中文输入界面 ===
+void CannedMessageModule::drawChineseInput(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
+{
+    // 常用汉字列表（6个）
+    static const char* chineseChars[] = {"我", "你", "他", "是", "的", "好"};
+    
+    // 设置字体（使用支持中文的字体）
+    display->setFont(FONT_MEDIUM);
+    display->setTextAlignment(TEXT_ALIGN_LEFT);
+    
+    // 绘制标题
+    display->drawString(0, 0, "中文输入:");
+    
+    // 绘制已输入的文本
+    if (freetext.length() > 0) {
+        display->drawString(0, 16, "文本:" + freetext);
+    }
+    
+    // 绘制候选汉字（在屏幕底部）
+    int startY = display->getHeight() - 16;  // 从底部向上绘制
+    int xPos = 0;
+    
+    for (int i = 0; i < 6; i++) {
+        String label = String(i+1) + ":" + String(chineseChars[i]);
+        display->drawString(xPos, startY, label);
+        xPos += 40;  // 每个候选字间隔40像素
+        if (xPos > display->getWidth() - 40) {
+            xPos = 0;
+            startY -= 16;  // 换行
+        }
+    }
 }
 
 void CannedMessageModule::sendText(NodeNum dest, ChannelIndex channel, const char *message, bool wantReplies)
@@ -1906,6 +2007,13 @@ void CannedMessageModule::drawEmotePickerScreen(OLEDDisplay *display, OLEDDispla
 void CannedMessageModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
 {
     this->displayHeight = display->getHeight(); // Store display height for later use
+    
+    // === 中文输入模式界面 ===
+    if (inputMode == InputMode::CHINESE) {
+        drawChineseInput(display, state, x, y);
+        return;
+    }
+    
     char buffer[50];
     display->setTextAlignment(TEXT_ALIGN_LEFT);
     display->setFont(FONT_SMALL);
