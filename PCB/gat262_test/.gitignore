@@ -1,0 +1,8 @@
+fp-info-cache
+*-backups
+.history
+logs
+out
+.history
+*.zip
+.DS_Store
